@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RO Service Renewal Engine - 60s Ad Preview</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    
+    .player-card {
+      width: 100%;
+      max-width: 900px;
+      background: #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    
+    .screen-container {
+      position: relative;
+      width: 100%;
+      height: 520px;
+      background: #020617;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    
+    .screen-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    
+    .badge-live {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(239, 68, 68, 0.9);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(239,68,68,0.4);
+    }
+    .badge-live::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: white;
+      border-radius: 50%;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+    
+    .scene-indicator {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(8px);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+    }
+    
+    .caption-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.8) 70%, transparent 100%);
+      padding: 24px 20px 16px 20px;
+      text-align: center;
+    }
+    
+    .caption-telugu {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fef08a;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    
+    .caption-english {
+      font-size: 13px;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: #334155;
+      position: relative;
+      cursor: pointer;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8, #10b981);
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    
+    .controls {
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1e293b;
+    }
+    
+    .btn-play {
+      background: #0284c7;
+      hover: background: #0369a1;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-play:hover { background: #0369a1; transform: scale(1.02); }
+    
+    .scenes-nav {
+      display: flex;
+      gap: 6px;
+    }
+    .scene-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #334155;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scene-dot.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: white;
+      box-shadow: 0 0 10px rgba(56,189,248,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="player-card">
+    <div class="screen-container">
+      <div class="badge-live">RO ENGINE AD</div>
+      <div id="sceneIndicator" class="scene-indicator">Scene 1 of 7</div>
+      <img id="adMedia" class="screen-img" src="01_dashboard_revenue_overview.png" alt="Ad Screen">
+      
+      <div class="caption-overlay">
+        <div id="capTelugu" class="caption-telugu">మీ RO వాటర్ ప్యూరిఫైయర్ బిజినెస్ లో ఫిల్టర్ సర్వీస్ డేట్లు మర్చిపోతున్నారా?</div>
+        <div id="capEnglish" class="caption-english">"Namaste andi! RO service renewal datelu marchipoyi customers ni miss avtunnara?"</div>
+      </div>
+    </div>
+    
+    <div class="progress-bar-bg" onclick="seekClick(event)">
+      <div id="progressFill" class="progress-bar-fill"></div>
+    </div>
+    
+    <div class="controls">
+      <button id="btnPlay" class="btn-play" onclick="togglePlay()">
+        <span id="playIcon">▶</span> <span id="playText">Play Full Ad (60s)</span>
+      </button>
+      
+      <div class="scenes-nav" id="dotsContainer"></div>
+      
+      <div style="font-size: 13px; color: #94a3b8; font-family: monospace;" id="timeDisplay">00:00 / 01:00</div>
+    </div>
+  </div>
+
+  <script>
+    const scenes = [
+      {
+        id: 1,
+        title: "Hook: The Problem",
+        start: 0,
+        end: 8,
+        media: "clip_01_dashboard_to_whatsapp_modal.gif",
+        fallback: "01_dashboard_revenue_overview.png",
+        telugu: "మీ RO వాటర్ ప్యూరిఫైయర్ బిజినెస్ లో ఫిల్టర్ సర్వీస్ డేట్లు మర్చిపోతున్నారా? డైరీలతో ఇబ్బంది పడుతున్నారా?",
+        english: "Namaste andi! Filter renewal datelu marchipoyi regular customers ni miss avtunnara?"
+      },
+      {
+        id: 2,
+        title: "Revenue & Urgency Radar",
+        start: 8,
+        end: 18,
+        media: "02_renewals_urgency_pipeline.png",
+        telugu: "ఇకపై ఆ చింత లేదు! 'RO సర్వీస్ రెన్యూవల్ ఇంజిన్' తో ఎవరికి ఎప్పుడు సర్వీస్ కావాలో రెడ్, ఆరెంజ్, గ్రీన్ తో క్లియర్ గా తెలుస్తుంది!",
+        english: "Money Left on Table & Smart Urgency Radar: Red (Overdue), Orange (7 Days), Green (Active)."
+      },
+      {
+        id: 3,
+        title: "1-Click WhatsApp Reminder",
+        start: 18,
+        end: 28,
+        media: "clip_01_dashboard_to_whatsapp_modal.gif",
+        fallback: "03_whatsapp_reminder_modal.png",
+        telugu: "సింగిల్ క్లిక్ తో కస్టమర్ పేరు, పాత TDS రీడింగ్ మరియు డ్యూ డేట్ తో ఆటోమేటిక్ WhatsApp రిమైండర్ వెళ్ళిపోతుంది!",
+        english: "Single click tho pre-filled WhatsApp reminder with TDS readings direct ga customer ki velthundi!"
+      },
+      {
+        id: 4,
+        title: "Customer 360 & Health",
+        start: 28,
+        end: 38,
+        media: "clip_02_customer360_machine_health.gif",
+        fallback: "05_customer_360_history_view.png",
+        telugu: "కస్టమర్ 360 ద్వారా సెడిమెంట్, కార్బన్, మెంబ్రేన్ లైఫ్‌టైమ్ మరియు గత సర్వీస్ హిస్టరీ మొత్తం సెకన్లలో చూడండి!",
+        english: "Customer 360: Check machine warranty, filter health, and full service logs in seconds!"
+      },
+      {
+        id: 5,
+        title: "Technician Google Maps Dispatch",
+        start: 38,
+        end: 48,
+        media: "clip_03_technician_dispatch_maps.gif",
+        fallback: "07_technician_whatsapp_dispatch_modal.png",
+        telugu: "సర్వీస్ బుక్ కాగానే టెక్నీషియన్ కి Google Maps లొకేషన్ మరియు కలెక్ట్ చేయాల్సిన అమౌంట్ తో జాబ్ కార్డ్ వాట్సాప్ అవుతుంది!",
+        english: "Auto-dispatch jobs to technicians on WhatsApp with Google Maps navigation link!"
+      },
+      {
+        id: 6,
+        title: "Spares & Instant UPI Invoice",
+        start: 48,
+        end: 56,
+        media: "clip_04_inventory_and_upi_invoice.gif",
+        fallback: "11_printable_invoice_with_upi_qr.png",
+        telugu: "స్పేర్స్ లో-స్టాక్ అలర్ట్స్ పొందండి. మీ షాప్ పేరు మరియు Scan to Pay UPI QR కోడ్ తో ప్రొఫెషనల్ బిల్లులు ఇవ్వండి!",
+        english: "Inventory reorder alerts + instant printable GST tax invoice with dynamic UPI QR code."
+      },
+      {
+        id: 7,
+        title: "Mobile Ready & CTA",
+        start: 56,
+        end: 60,
+        media: "clip_05_mobile_vertical_walkthrough.gif",
+        fallback: "13_mobile_dashboard_vertical.png",
+        telugu: "ల్యాప్‌టాప్ అవసరం లేదు! మీ మొబైల్ లోనే బిజినెస్ నడపండి. ఫ్రీ డెమో కోసం ఇప్పుడే మెసేజ్ చేయండి!",
+        english: "Runs 100% on any smartphone! Contact us today for free setup & demo."
+      }
+    ];
+
+    const TOTAL_DURATION = 60;
+    let currentTime = 0;
+    let isPlaying = false;
+    let timer = null;
+
+    const adMedia = document.getElementById('adMedia');
+    const capTelugu = document.getElementById('capTelugu');
+    const capEnglish = document.getElementById('capEnglish');
+    const sceneIndicator = document.getElementById('sceneIndicator');
+    const progressFill = document.getElementById('progressFill');
+    const btnPlay = document.getElementById('btnPlay');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const dotsContainer = document.getElementById('dotsContainer');
+
+    // Create scene dots
+    scenes.forEach((sc, idx) => {
+      const dot = document.createElement('div');
+      dot.className = `scene-dot ${idx === 0 ? 'active' : ''}`;
+      dot.textContent = idx + 1;
+      dot.title = sc.title;
+      dot.onclick = () => seekTo(sc.start);
+      dotsContainer.appendChild(dot);
+    });
+
+    function getActiveScene(t) {
+      return scenes.find(s => t >= s.start && t < s.end) || scenes[scenes.length - 1];
+    }
+
+    function updateUI() {
+      const sc = getActiveScene(currentTime);
+      if (sc) {
+        if (!adMedia.src.endsWith(sc.media)) {
+          adMedia.src = sc.media;
+          adMedia.onerror = () => { adMedia.src = sc.fallback; };
+        }
+        capTelugu.textContent = sc.telugu;
+        capEnglish.textContent = sc.english;
+        sceneIndicator.textContent = `Scene ${sc.id} of 7: ${sc.title}`;
+      }
+
+      // Update progress
+      const pct = (currentTime / TOTAL_DURATION) * 100;
+      progressFill.style.width = pct + '%';
+
+      // Update time string
+      const min = Math.floor(currentTime / 60);
+      const sec = Math.floor(currentTime % 60);
+      timeDisplay.textContent = `0${min}:${sec < 10 ? '0' : ''}${sec} / 01:00`;
+
+      // Update dots
+      document.querySelectorAll('.scene-dot').forEach((d, idx) => {
+        d.classList.toggle('active', scenes[idx].id === sc.id);
+      });
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        pause();
+      } else {
+        if (currentTime >= TOTAL_DURATION) currentTime = 0;
+        play();
+      }
+    }
+
+    function play() {
+      isPlaying = true;
+      playIcon.textContent = '⏸';
+      playText.textContent = 'Pause';
+      timer = setInterval(() => {
+        currentTime += 0.2;
+        if (currentTime >= TOTAL_DURATION) {
+          currentTime = TOTAL_DURATION;
+          pause();
+        }
+        updateUI();
+      }, 200);
+    }
+
+    function pause() {
+      isPlaying = false;
+      playIcon.textContent = '▶';
+      playText.textContent = 'Play';
+      if (timer) clearInterval(timer);
+    }
+
+    function seekTo(seconds) {
+      currentTime = Math.max(0, Math.min(TOTAL_DURATION, seconds));
+      updateUI();
+    }
+
+    function seekClick(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const ratio = clickX / rect.width;
+      seekTo(ratio * TOTAL_DURATION);
+    }
+
+    updateUI();
+  </script>
+</body>
+</html>

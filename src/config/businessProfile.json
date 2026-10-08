@@ -1,0 +1,16 @@
+{
+  "name": "niki Aquapure RO Solutions",
+  "ownerName": "Niki",
+  "tagline": "Never miss a service. Never lose a customer.",
+  "phone": "+91 98490 12345",
+  "whatsappNumber": "919849012345",
+  "email": "service@aquapurero.in",
+  "address": "Plot 42, Hitech City Main Rd, Madhapur",
+  "city": "Hyderabad",
+  "state": "Telangana",
+  "pincode": "500081",
+  "gstin": "36ABCDE1234F1Z5",
+  "invoicePrefix": "AQ-RO-",
+  "defaultServiceIntervalMonths": 3,
+  "lastUpdated": "2026-09-21T10:37:38.106Z"
+}
