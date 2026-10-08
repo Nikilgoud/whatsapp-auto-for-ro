@@ -12,5 +12,19 @@
   "gstin": "36ABCDE1234F1Z5",
   "invoicePrefix": "AQ-RO-",
   "defaultServiceIntervalMonths": 3,
-  "lastUpdated": "2026-09-21T10:37:38.106Z"
+  "lastUpdated": "2026-10-08T14:02:15.994Z",
+  "averageServiceCost": 0,
+  "serviceCharges": {
+    "generalService": 0,
+    "periodicService": 0,
+    "installation": 0,
+    "uninstallation": 0,
+    "filterReplacement": 0,
+    "membraneReplacement": 0,
+    "uvReplacement": 0,
+    "leakageRepair": 0,
+    "tdsAdjustment": 0,
+    "emergencyService": 0,
+    "minimumVisitingFee": 0
+  }
 }

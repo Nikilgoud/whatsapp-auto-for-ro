@@ -104,6 +104,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     .filter((inv) => inv.paymentStatus !== 'Paid')
     .reduce((sum, inv) => sum + (inv.balanceDue || inv.total - inv.amountPaid), 0);
 
+  // Dynamic monthly calculations (strict production-ready without hardcoded values)
+  const currentNow = new Date();
+  const currentMonthPrefix = `${currentNow.getFullYear()}-${String(currentNow.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(currentMonthPrefix));
+  const currentMonthRevenue = currentMonthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+  const customersThisMonth = customers.filter((c) => c.createdAt?.startsWith(currentMonthPrefix)).length;
+  const activeTechniciansCount = technicians.filter((t) => t.status !== 'Inactive').length;
+
   const openWhatsApp = (customer: Customer, purifier?: Purifier, templateKey = 'SERVICE_DUE') => {
     setSelectedCustForWhatsApp(customer);
     setSelectedPurForWhatsApp(purifier || null);
@@ -162,7 +170,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">{totalCustomers}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">+14 this month</span>
+            <span className="text-[11px] text-emerald-600 font-medium">+{customersThisMonth} this month</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Residential & Commercial RO</p>
         </div>
@@ -198,7 +206,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900 dark:text-white">{todaysJobs.length}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">3 Technicians active</span>
+            <span className="text-[11px] text-emerald-600 font-medium">{activeTechniciansCount} Technicians active</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Doorstep servicing Hyderabad</p>
         </div>
@@ -215,8 +223,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatIndianCurrency(184500)}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">+18% vs Aug</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatIndianCurrency(currentMonthRevenue)}</span>
+            <span className="text-[11px] text-slate-400 font-medium">Collected</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Pending: {formatIndianCurrency(pendingInvoicesTotal)}</p>
         </div>
