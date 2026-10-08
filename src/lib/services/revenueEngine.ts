@@ -24,9 +24,9 @@ export function calculateRevenueOpportunities(
   amcSubscriptions: AMCSubscription[],
   settings: BusinessSettings
 ): RevenueOpportunityBreakdown {
-  const avgServiceCost = settings.averageServiceCost || 650;
-  const avgFilterCost = settings.averageFilterCost || 1400;
-  const avgAmcCost = settings.averageAmcCost || 3500;
+  const avgServiceCost = settings.serviceCharges?.generalService ?? settings.averageServiceCost ?? 0;
+  const avgFilterCost = settings.serviceCharges?.filterReplacement ?? settings.averageFilterCost ?? 0;
+  const avgAmcCost = settings.averageAmcCost ?? 0;
 
   // 1. Filter replacements due or overdue
   const filterRenewals = renewals.filter(

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { ServiceRecord, Customer, Purifier } from '@/types';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, getServiceCharge } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import { SendJobToTechWhatsAppModal } from '@/components/technician/SendJobToTechWhatsAppModal';
 import {
@@ -33,7 +33,7 @@ export const ServiceList: React.FC<ServiceListProps> = ({
   onOpenSchedule,
   onSelectCustomer,
 }) => {
-  const { services, customers, purifiers, technicians, startService, completeService } = useApp();
+  const { services, customers, purifiers, technicians, startService, completeService, business } = useApp();
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -54,7 +54,8 @@ export const ServiceList: React.FC<ServiceListProps> = ({
   const [inletTds, setInletTds] = useState(850);
   const [outputTds, setOutputTds] = useState(80);
   const [workSummary, setWorkSummary] = useState('Routine checkup, cleaned sediment bowl, output TDS normal.');
-  const [amountPaid, setAmountPaid] = useState(650);
+  const [completeLabourCharge, setCompleteLabourCharge] = useState<number>(0);
+  const [amountPaid, setAmountPaid] = useState(0);
 
   const filteredServices = services.filter((srv) => {
     if (filterStatus !== 'ALL') {
@@ -91,7 +92,7 @@ export const ServiceList: React.FC<ServiceListProps> = ({
       inletTds,
       outputTds,
       workSummary,
-      labourCharge: serviceToComplete.labourCharge || 300,
+      labourCharge: completeLabourCharge,
       discount: serviceToComplete.discount || 0,
       amountPaid,
       partsUsed: serviceToComplete.partsUsed.map((p) => ({
@@ -304,8 +305,10 @@ export const ServiceList: React.FC<ServiceListProps> = ({
                             ) : (
                               <button
                                 onClick={() => {
+                                  const charge = srv.labourCharge ?? getServiceCharge(srv.serviceType, business?.settings);
                                   setServiceToComplete(srv);
-                                  setAmountPaid(srv.total);
+                                  setCompleteLabourCharge(charge);
+                                  setAmountPaid(srv.total || (charge + (srv.partsCharge || 0)));
                                 }}
                                 className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold transition"
                               >
@@ -367,14 +370,32 @@ export const ServiceList: React.FC<ServiceListProps> = ({
               />
             </div>
 
-            <div className="text-xs">
-              <label className="block font-semibold mb-1">Amount Collected (₹)</label>
-              <input
-                type="number"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(parseInt(e.target.value, 10) || 0)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg font-bold text-slate-900 dark:text-white"
-              />
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Labour Charge (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={completeLabourCharge}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10) || 0;
+                    setCompleteLabourCharge(val);
+                    setAmountPaid(val + (serviceToComplete?.partsCharge || 0));
+                  }}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg font-bold text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Amount Collected (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(parseInt(e.target.value, 10) || 0)}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-lg font-bold text-emerald-600 dark:text-emerald-400"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

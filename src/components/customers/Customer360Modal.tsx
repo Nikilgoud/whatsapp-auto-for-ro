@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Customer, Purifier, ServiceRecord, CommunicationLog, ServiceType, ServiceStatus } from '@/types';
 import { useApp } from '@/context/AppContext';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, getServiceCharge } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import {
   X,
@@ -46,6 +46,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
   onBookService,
 }) => {
   const {
+    business,
     customers,
     purifiers,
     services,
@@ -135,13 +136,15 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
   const [logDate, setLogDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [logTimeSlot, setLogTimeSlot] = useState<string>('10:00 AM - 12:00 PM');
   const [logTechId, setLogTechId] = useState<string>(technicians[0]?.id || '');
-  const [logInletTds, setLogInletTds] = useState<string>('750');
-  const [logOutputTds, setLogOutputTds] = useState<string>('80');
-  const [logWorkSummary, setLogWorkSummary] = useState<string>('Routine periodic service completed. Filter cleaned and flow calibrated.');
-  const [logPartName, setLogPartName] = useState<string>('Sediment Filter 10" Spun');
+  const [logInletTds, setLogInletTds] = useState<string>('');
+  const [logOutputTds, setLogOutputTds] = useState<string>('');
+  const [logWorkSummary, setLogWorkSummary] = useState<string>('');
+  const [logPartName, setLogPartName] = useState<string>('');
   const [logPartQty, setLogPartQty] = useState<number>(1);
-  const [logPartPrice, setLogPartPrice] = useState<number>(350);
-  const [logLabourCharge, setLogLabourCharge] = useState<number>(250);
+  const [logPartPrice, setLogPartPrice] = useState<number>(0);
+  const [logLabourCharge, setLogLabourCharge] = useState<number>(() => {
+    return getServiceCharge('Periodic service', business?.settings);
+  });
   const [logPaymentMethod, setLogPaymentMethod] = useState<'UPI' | 'Cash' | 'Card'>('UPI');
   const [logRating, setLogRating] = useState<number>(5);
 
@@ -959,7 +962,11 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                   </label>
                   <select
                     value={logServiceType}
-                    onChange={(e) => setLogServiceType(e.target.value as ServiceType)}
+                    onChange={(e) => {
+                      const newType = e.target.value as ServiceType;
+                      setLogServiceType(newType);
+                      setLogLabourCharge(getServiceCharge(newType, business?.settings));
+                    }}
                     className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-medium"
                   >
                     <option value="Periodic service">Periodic service</option>

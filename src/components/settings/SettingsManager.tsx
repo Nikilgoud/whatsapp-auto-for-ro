@@ -17,6 +17,7 @@ import {
   Sparkles,
   Send,
   Upload,
+  DollarSign,
 } from 'lucide-react';
 
 export const SettingsManager: React.FC = () => {
@@ -52,6 +53,20 @@ export const SettingsManager: React.FC = () => {
   const [membraneInterval, setMembraneInterval] = useState(business.settings.membraneIntervalMonths);
   const [uvInterval, setUvInterval] = useState(business.settings.uvLampIntervalMonths);
 
+  // Owner-Configured Service Charges
+  const [generalServiceCharge, setGeneralServiceCharge] = useState(business.settings.serviceCharges?.generalService ?? 0);
+  const [periodicServiceCharge, setPeriodicServiceCharge] = useState(business.settings.serviceCharges?.periodicService ?? 0);
+  const [installationCharge, setInstallationCharge] = useState(business.settings.serviceCharges?.installation ?? 0);
+  const [uninstallationCharge, setUninstallationCharge] = useState(business.settings.serviceCharges?.uninstallation ?? 0);
+  const [filterReplacementCharge, setFilterReplacementCharge] = useState(business.settings.serviceCharges?.filterReplacement ?? 0);
+  const [membraneReplacementCharge, setMembraneReplacementCharge] = useState(business.settings.serviceCharges?.membraneReplacement ?? 0);
+  const [uvReplacementCharge, setUvReplacementCharge] = useState(business.settings.serviceCharges?.uvReplacement ?? 0);
+  const [leakageRepairCharge, setLeakageRepairCharge] = useState(business.settings.serviceCharges?.leakageRepair ?? 0);
+  const [tdsAdjustmentCharge, setTdsAdjustmentCharge] = useState(business.settings.serviceCharges?.tdsAdjustment ?? 0);
+  const [emergencyServiceCharge, setEmergencyServiceCharge] = useState(business.settings.serviceCharges?.emergencyService ?? 0);
+  const [minimumVisitingFee, setMinimumVisitingFee] = useState(business.settings.serviceCharges?.minimumVisitingFee ?? 0);
+  const [averageServiceCost, setAverageServiceCost] = useState(business.settings.averageServiceCost ?? 0);
+
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -80,6 +95,20 @@ export const SettingsManager: React.FC = () => {
       city,
     });
 
+    const serviceChargesConfig = {
+      generalService: Number(generalServiceCharge) || 0,
+      periodicService: Number(periodicServiceCharge) || 0,
+      installation: Number(installationCharge) || 0,
+      uninstallation: Number(uninstallationCharge) || 0,
+      filterReplacement: Number(filterReplacementCharge) || 0,
+      membraneReplacement: Number(membraneReplacementCharge) || 0,
+      uvReplacement: Number(uvReplacementCharge) || 0,
+      leakageRepair: Number(leakageRepairCharge) || 0,
+      tdsAdjustment: Number(tdsAdjustmentCharge) || 0,
+      emergencyService: Number(emergencyServiceCharge) || 0,
+      minimumVisitingFee: Number(minimumVisitingFee) || 0,
+    };
+
     updateBusinessSettings({
       defaultServiceIntervalMonths: defaultInterval,
       sedimentFilterIntervalMonths: sedimentInterval,
@@ -88,6 +117,8 @@ export const SettingsManager: React.FC = () => {
       uvLampIntervalMonths: uvInterval,
       gstin,
       invoicePrefix,
+      averageServiceCost: Number(averageServiceCost) || Number(generalServiceCharge) || 0,
+      serviceCharges: serviceChargesConfig,
     });
 
     // 2. Also write directly to disk (src/config/businessProfile.json) so the project folder is permanently configured for this client!
@@ -95,7 +126,11 @@ export const SettingsManager: React.FC = () => {
       await fetch('/api/update-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cleanProfile),
+        body: JSON.stringify({
+          ...cleanProfile,
+          averageServiceCost: Number(averageServiceCost) || Number(generalServiceCharge) || 0,
+          serviceCharges: serviceChargesConfig,
+        }),
       });
     } catch {
       // serverless or offline fallback
@@ -106,6 +141,20 @@ export const SettingsManager: React.FC = () => {
   };
 
   const handleExportBackup = () => {
+    const serviceChargesConfig = {
+      generalService: Number(generalServiceCharge) || 0,
+      periodicService: Number(periodicServiceCharge) || 0,
+      installation: Number(installationCharge) || 0,
+      uninstallation: Number(uninstallationCharge) || 0,
+      filterReplacement: Number(filterReplacementCharge) || 0,
+      membraneReplacement: Number(membraneReplacementCharge) || 0,
+      uvReplacement: Number(uvReplacementCharge) || 0,
+      leakageRepair: Number(leakageRepairCharge) || 0,
+      tdsAdjustment: Number(tdsAdjustmentCharge) || 0,
+      emergencyService: Number(emergencyServiceCharge) || 0,
+      minimumVisitingFee: Number(minimumVisitingFee) || 0,
+    };
+
     const backup = {
       business: {
         ...business,
@@ -125,6 +174,8 @@ export const SettingsManager: React.FC = () => {
           uvLampIntervalMonths: uvInterval,
           gstin,
           invoicePrefix,
+          averageServiceCost: Number(averageServiceCost) || Number(generalServiceCharge) || 0,
+          serviceCharges: serviceChargesConfig,
         },
       },
       customers,
@@ -336,6 +387,206 @@ export const SettingsManager: React.FC = () => {
                 <option value={12}>Every 12 Months</option>
                 <option value={18}>Every 18 Months</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* SERVICE CHARGES & PRICING MASTER (SET BY OWNER) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                <span>Service Charges & Labour Rates (Set by Owner)</span>
+              </h3>
+              <p className="text-slate-500 mt-0.5">
+                Every charge across the engine is strictly controlled here. No automatic charges are added without your approval. Leave as ₹0 if you wish to enter fees manually during job execution.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto shrink-0">
+              Owner Controlled
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                General RO Service Visit (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={generalServiceCharge}
+                onChange={(e) => setGeneralServiceCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 250, 300"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Routine inspection & basic cleaning</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Periodic Service Charge (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={periodicServiceCharge}
+                onChange={(e) => setPeriodicServiceCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 300"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Scheduled 3-month or 6-month maintenance</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                New RO Installation Charge (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={installationCharge}
+                onChange={(e) => setInstallationCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 400, 500"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Wall mounting, plumbing & initial setup</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Uninstallation / Shifting (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={uninstallationCharge}
+                onChange={(e) => setUninstallationCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 300"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Dismantling & relocation service</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Filter Replacement Labour (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={filterReplacementCharge}
+                onChange={(e) => setFilterReplacementCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 150"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Labour fee for pre-filter/carbon/sediment</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Membrane Replacement Labour (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={membraneReplacementCharge}
+                onChange={(e) => setMembraneReplacementCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 250"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">RO membrane installation & housing flush</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                UV Lamp Replacement Labour (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={uvReplacementCharge}
+                onChange={(e) => setUvReplacementCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 200"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">UV tube / ballast replacement</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Leakage / Pump Repair Visit (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={leakageRepairCharge}
+                onChange={(e) => setLeakageRepairCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 200"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Electrical diagnosis, pump, elbow fittings</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                TDS Calibration & Testing (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={tdsAdjustmentCharge}
+                onChange={(e) => setTdsAdjustmentCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 150"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Mineral booster & TDS adjuster calibration</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Emergency Breakdown Visit (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={emergencyServiceCharge}
+                onChange={(e) => setEmergencyServiceCharge(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 350"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Same-day urgent priority dispatch</span>
+            </div>
+
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+              <label className="block font-bold text-slate-800 dark:text-slate-200 mb-1">
+                Minimum Visiting / Inspection Fee (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={minimumVisitingFee}
+                onChange={(e) => setMinimumVisitingFee(Number(e.target.value) || 0)}
+                placeholder="e.g. 0, 150"
+                className="w-full p-2 bg-white dark:bg-slate-900 border rounded-lg font-bold text-slate-900 dark:text-white"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Doorstep inspection if no repair done</span>
+            </div>
+
+            <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900/60">
+              <label className="block font-bold text-blue-900 dark:text-blue-300 mb-1">
+                Default Renewal Estimate Value (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={averageServiceCost}
+                onChange={(e) => setAverageServiceCost(Number(e.target.value) || 0)}
+                placeholder="e.g. 0 or standard routine fee"
+                className="w-full p-2 bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-800 rounded-lg font-bold text-blue-950 dark:text-blue-200"
+              />
+              <span className="text-[10px] text-blue-600/80 dark:text-blue-400 mt-1 block">Used for overdue pipeline valuation</span>
             </div>
           </div>
         </div>

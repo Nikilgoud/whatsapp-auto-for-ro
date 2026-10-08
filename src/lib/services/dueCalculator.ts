@@ -114,7 +114,7 @@ export function createRenewalFromService(
     urgency,
     daysRemaining,
     serviceType: 'General service',
-    estimatedValue: settings.averageServiceCost || 650,
+    estimatedValue: settings.serviceCharges?.generalService ?? settings.averageServiceCost ?? 0,
     followUpStage: 'Not due',
     status: 'PENDING',
     remindersSentCount: 0,

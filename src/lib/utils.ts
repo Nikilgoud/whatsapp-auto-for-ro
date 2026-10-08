@@ -35,3 +35,42 @@ export function formatAmountInWords(num: number): string {
   const words = inWords(integerPart).trim();
   return words ? `${words} Rupees Only` : 'Zero Rupees Only';
 }
+
+/**
+ * Returns owner-configured charge for a specific service type.
+ * Never returns automatic hardcoded fees; returns 0 if not configured.
+ */
+export function getServiceCharge(serviceType?: string, settings?: any): number {
+  if (!settings || !settings.serviceCharges) return 0;
+  const sc = settings.serviceCharges;
+  switch (serviceType) {
+    case 'General service':
+      return Number(sc.generalService) || 0;
+    case 'Periodic service':
+      return Number(sc.periodicService) || 0;
+    case 'Installation':
+      return Number(sc.installation) || 0;
+    case 'Uninstallation':
+      return Number(sc.uninstallation) || 0;
+    case 'Filter replacement':
+      return Number(sc.filterReplacement) || 0;
+    case 'Membrane replacement':
+      return Number(sc.membraneReplacement) || 0;
+    case 'UV replacement':
+      return Number(sc.uvReplacement) || 0;
+    case 'Leakage repair':
+    case 'Pump replacement':
+    case 'SMPS replacement':
+    case 'Tap replacement':
+    case 'Pipe replacement':
+      return Number(sc.leakageRepair) || 0;
+    case 'TDS adjustment':
+    case 'Water quality check':
+    case 'Complete cleaning':
+      return Number(sc.tdsAdjustment) || 0;
+    case 'Emergency service':
+      return Number(sc.emergencyService) || 0;
+    default:
+      return Number(sc.minimumVisitingFee) || 0;
+  }
+}

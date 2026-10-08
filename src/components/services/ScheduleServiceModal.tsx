@@ -5,6 +5,7 @@ import { useApp } from '@/context/AppContext';
 import { Customer, Purifier, ServiceType, Technician } from '@/types';
 import { matchTechniciansForService, TechnicianMatchResult } from '@/lib/services/technicianMatcher';
 import { SendJobToTechWhatsAppModal } from '@/components/technician/SendJobToTechWhatsAppModal';
+import { getServiceCharge } from '@/lib/utils';
 import { X, Calendar, Wrench, Clock, UserCheck, AlertCircle, CheckCircle, Sparkles, Send } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -23,16 +24,18 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
   preselectedPurifier,
   preselectedServiceType,
 }) => {
-  const { customers, purifiers, technicians, scheduleService } = useApp();
+  const { customers, purifiers, technicians, scheduleService, business } = useApp();
 
   const [customerId, setCustomerId] = useState<string>('');
   const [purifierId, setPurifierId] = useState<string>('');
-  const [serviceType, setServiceType] = useState<ServiceType>('General service');
+  const [serviceType, setServiceType] = useState<ServiceType>(preselectedServiceType || 'General service');
   const [scheduledDate, setScheduledDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [scheduledTimeSlot, setScheduledTimeSlot] = useState<string>('09:30 AM - 11:00 AM');
   const [technicianId, setTechnicianId] = useState<string>('');
   const [issueDescription, setIssueDescription] = useState<string>('');
-  const [labourCharge, setLabourCharge] = useState<number>(300);
+  const [labourCharge, setLabourCharge] = useState<number>(() => {
+    return getServiceCharge(preselectedServiceType || 'General service', business?.settings);
+  });
 
   // Post-booking dispatch modal
   const [createdServiceForDispatch, setCreatedServiceForDispatch] = useState<any>(null);
@@ -57,8 +60,9 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
   useEffect(() => {
     if (preselectedServiceType) {
       setServiceType(preselectedServiceType);
+      setLabourCharge(getServiceCharge(preselectedServiceType, business?.settings));
     }
-  }, [preselectedServiceType]);
+  }, [preselectedServiceType, business?.settings]);
 
   // Selected customer object for smart matching
   const currentCustomer = customers.find((c) => c.id === customerId);
@@ -151,7 +155,11 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
               </label>
               <select
                 value={serviceType}
-                onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                onChange={(e) => {
+                  const newType = e.target.value as ServiceType;
+                  setServiceType(newType);
+                  setLabourCharge(getServiceCharge(newType, business?.settings));
+                }}
                 className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-medium"
               >
                 <option value="General service">General service</option>

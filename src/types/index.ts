@@ -11,6 +11,20 @@ export interface User {
   isActive: boolean;
 }
 
+export interface ServiceChargesConfig {
+  generalService: number;
+  periodicService: number;
+  installation: number;
+  uninstallation: number;
+  filterReplacement: number;
+  membraneReplacement: number;
+  uvReplacement: number;
+  leakageRepair: number;
+  tdsAdjustment: number;
+  emergencyService: number;
+  minimumVisitingFee: number;
+}
+
 export interface BusinessSettings {
   defaultServiceIntervalMonths: number;
   sedimentFilterIntervalMonths: number;
@@ -27,6 +41,7 @@ export interface BusinessSettings {
   averageServiceCost: number;
   averageFilterCost: number;
   averageAmcCost: number;
+  serviceCharges?: ServiceChargesConfig;
 }
 
 export interface Business {

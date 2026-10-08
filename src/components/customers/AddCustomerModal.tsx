@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
+import { getServiceCharge } from '@/lib/utils';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -51,7 +52,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
   const [customPurifierType, setCustomPurifierType] = useState('RO + Alkaline');
 
   // STEP 5: Service, Warranty & Next Service Due
-  const [currentServiceTaken, setCurrentServiceTaken] = useState('Dust filter (Pre-filter) replacement');
+  const [currentServiceTaken, setCurrentServiceTaken] = useState('');
+  const [serviceLabourCharge, setServiceLabourCharge] = useState<number>(0);
+  const [servicePartsCharge, setServicePartsCharge] = useState<number>(0);
   const [serviceDate, setServiceDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [nextIntervalChoice, setNextIntervalChoice] = useState<'3_MONTHS' | '6_MONTHS' | 'CUSTOM'>('3_MONTHS');
   const [customIntervalMonths, setCustomIntervalMonths] = useState<number>(3);
@@ -245,21 +248,24 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         inletWaterTds: parseInt(inletTds, 10) || undefined,
         outputWaterTds: Math.round((parseInt(inletTds, 10) || 800) * 0.1),
         checklists: [],
-        partsUsed: [
-          {
-            id: `p-${Date.now()}`,
-            name: currentServiceTaken.trim(),
-            quantity: 1,
-            unitPrice: 350,
-            totalPrice: 350,
-          },
-        ],
-        labourCharge: 250,
-        partsCharge: 350,
+        partsUsed:
+          servicePartsCharge > 0
+            ? [
+                {
+                  id: `p-${Date.now()}`,
+                  name: currentServiceTaken.trim(),
+                  quantity: 1,
+                  unitPrice: servicePartsCharge,
+                  totalPrice: servicePartsCharge,
+                },
+              ]
+            : [],
+        labourCharge: serviceLabourCharge,
+        partsCharge: servicePartsCharge,
         discount: 0,
         tax: 0,
-        total: 600,
-        amountPaid: 600,
+        total: serviceLabourCharge + servicePartsCharge,
+        amountPaid: serviceLabourCharge + servicePartsCharge,
         amountPending: 0,
         paymentStatus: 'Paid',
         paymentMethod: 'UPI',
@@ -623,7 +629,18 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                       <button
                         type="button"
                         key={preset}
-                        onClick={() => setCurrentServiceTaken(preset)}
+                        onClick={() => {
+                          setCurrentServiceTaken(preset);
+                          const serviceType = preset.includes('Installation')
+                            ? 'Installation'
+                            : preset.includes('Membrane')
+                            ? 'Membrane replacement'
+                            : preset.includes('filter')
+                            ? 'Filter replacement'
+                            : 'General service';
+                          const configuredCharge = getServiceCharge(serviceType, business?.settings);
+                          setServiceLabourCharge(configuredCharge);
+                        }}
                         className={`px-2 py-0.5 rounded-lg text-[10px] font-medium border transition ${
                           currentServiceTaken === preset
                             ? 'bg-blue-600 text-white border-blue-600'
@@ -662,6 +679,37 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                     />
                   </div>
                 </div>
+
+                {currentServiceTaken.trim() && (
+                  <div className="grid grid-cols-2 gap-3 pt-1 p-2 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Labour / Service Fee (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={serviceLabourCharge}
+                        onChange={(e) => setServiceLabourCharge(Number(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Parts / Spares Cost (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={servicePartsCharge}
+                        onChange={(e) => setServicePartsCharge(Number(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* NEXT SERVICE INTERVAL: 3 MONTHS, 6 MONTHS, OR TYPE CUSTOM */}
