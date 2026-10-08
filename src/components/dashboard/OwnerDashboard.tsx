@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { calculateRevenueOpportunities } from '@/lib/services/revenueEngine';
 import { formatIndianCurrency } from '@/lib/utils';
@@ -43,15 +43,6 @@ interface OwnerDashboardProps {
   onScheduleForRenewal: (renewal: Renewal) => void;
 }
 
-const REVENUE_CHART_DATA = [
-  { month: 'Apr', revenue: 112000, services: 142 },
-  { month: 'May', revenue: 138000, services: 168 },
-  { month: 'Jun', revenue: 124000, services: 155 },
-  { month: 'Jul', revenue: 149000, services: 180 },
-  { month: 'Aug', revenue: 168000, services: 210 },
-  { month: 'Sep', revenue: 184500, services: 235 },
-];
-
 export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   onNavigate,
   onSelectCustomer,
@@ -73,6 +64,26 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const [selectedCustForWhatsApp, setSelectedCustForWhatsApp] = useState<Customer | null>(null);
   const [selectedPurForWhatsApp, setSelectedPurForWhatsApp] = useState<Purifier | null>(null);
   const [defaultTemplate, setDefaultTemplate] = useState<string>('SERVICE_DUE');
+
+  // Dynamic monthly revenue trend from real invoices
+  const revenueChartData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const result = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mName = monthNames[d.getMonth()];
+      const yearStr = d.getFullYear().toString();
+      const mStr = String(d.getMonth() + 1).padStart(2, '0');
+      const prefix = `${yearStr}-${mStr}`;
+
+      const monthInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(prefix));
+      const rev = monthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+      const srvCount = monthInvoices.length;
+      result.push({ month: mName, revenue: rev, services: srvCount });
+    }
+    return result;
+  }, [invoices]);
 
   // Revenue engine calculation
   const revenueStats = calculateRevenueOpportunities(
@@ -376,8 +387,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               <Users className="w-3.5 h-3.5" />
               <span>Technicians</span>
             </div>
-            <p className="text-xl font-extrabold text-slate-800 dark:text-slate-200 mt-1">3 Active</p>
-            <p className="text-[11px] text-slate-500">Ravi, Suresh, Mahesh</p>
+            <p className="text-xl font-extrabold text-slate-800 dark:text-slate-200 mt-1">{technicians.length} Active</p>
+            <p className="text-[11px] text-slate-500">
+              {technicians.length > 0 ? technicians.map((t) => t.name).join(', ') : 'No technicians yet'}
+            </p>
           </button>
         </div>
       </div>
@@ -392,13 +405,13 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               <p className="text-xs text-slate-500">Regular servicing, spares, and AMC subscription earnings</p>
             </div>
             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-1 rounded-lg">
-              Avg Ticket: ₹840
+              Avg Ticket: {formatIndianCurrency(invoices.length > 0 ? Math.round(invoices.reduce((sum, i) => sum + (i.amountPaid || i.total || 0), 0) / invoices.length) : 0)}
             </span>
           </div>
 
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={REVENUE_CHART_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.4} />
@@ -451,34 +464,49 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             </div>
 
             <div className="space-y-3">
-              {technicians.map((tech, idx) => (
-                <div
-                  key={tech.id}
-                  className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                      {tech.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900 dark:text-white">{tech.name}</p>
-                      <p className="text-[10px] text-slate-500">{tech.serviceAreas[0]} zone • {tech.rating} ★</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{tech.completedJobs} Jobs</p>
-                    <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">
-                      {tech.status}
-                    </span>
-                  </div>
+              {technicians.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-400">
+                  No technicians added yet.
                 </div>
-              ))}
+              ) : (
+                technicians.map((tech) => (
+                  <div
+                    key={tech.id}
+                    className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                        {tech.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{tech.name}</p>
+                        <p className="text-[10px] text-slate-500">
+                          {tech.serviceAreas?.[0] || 'General'} zone • {tech.rating || 5} ★
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">{tech.completedJobs} Jobs</p>
+                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">
+                        {tech.status}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-300">
-            <span className="font-semibold">Smart Locality Routing:</span> Ravi is in Kondapur, Suresh is in Kukatpally, Mahesh is in Banjara Hills.
-          </div>
+          {technicians.length > 0 ? (
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-300">
+              <span className="font-semibold">Smart Locality Routing: </span>
+              {technicians.map((t) => `${t.name} (${t.serviceAreas.join(', ') || 'All areas'})`).join(' • ')}
+            </div>
+          ) : (
+            <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500">
+              Add field technicians in the Technicians tab to assign service jobs.
+            </div>
+          )}
         </div>
       </div>
 
@@ -515,10 +543,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {renewals
-                .filter((r) => r.daysRemaining <= 0)
-                .slice(0, 5)
-                .map((rnw) => {
+              {renewals.filter((r) => r.daysRemaining <= 0).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                    All customer purifiers are up to date! No overdue services.
+                  </td>
+                </tr>
+              ) : (
+                renewals
+                  .filter((r) => r.daysRemaining <= 0)
+                  .slice(0, 5)
+                  .map((rnw) => {
                   const customer = customers.find((c) => c.id === rnw.customerId);
                   const purifier = purifiers.find((p) => p.id === rnw.purifierId);
                   if (!customer) return null;
@@ -580,7 +615,8 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
                       </td>
                     </tr>
                   );
-                })}
+                })
+              )}
             </tbody>
           </table>
         </div>

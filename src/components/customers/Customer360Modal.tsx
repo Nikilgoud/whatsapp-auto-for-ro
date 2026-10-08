@@ -404,9 +404,9 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
               {/* Financial Quick Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <p className="text-[11px] text-slate-400">Total Lifetime Spend</p>
-                  <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
-                    {formatIndianCurrency(currentCustomer.totalSpend)}
+                  <p className="text-[11px] text-slate-400">Purifier Unit</p>
+                  <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5 truncate">
+                    {primaryPurifier ? `${primaryPurifier.brand} ${primaryPurifier.model}` : 'RO Purifier'}
                   </p>
                 </div>
                 <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">

@@ -107,7 +107,7 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'ro_renewal_engine_v1_store';
+const STORAGE_KEY = 'ro_renewal_engine_prod_v2';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
@@ -135,18 +135,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // 1. Initial Load: Load local storage instantly, then sync latest from Supabase
   useEffect(() => {
     try {
+      // Clear legacy demo cache keys
+      localStorage.removeItem('ro_renewal_engine_v1_store');
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.customers) setCustomers(parsed.customers);
-        if (parsed.purifiers) setPurifiers(parsed.purifiers);
-        if (parsed.renewals) setRenewals(parsed.renewals);
-        if (parsed.services) setServices(parsed.services);
-        if (parsed.technicians) setTechnicians(parsed.technicians);
-        if (parsed.inventory) setInventory(parsed.inventory);
-        if (parsed.invoices) setInvoices(parsed.invoices);
-        if (parsed.amcSubscriptions) setAmcSubscriptions(parsed.amcSubscriptions);
-        if (parsed.business) setBusiness(parsed.business);
+        // Ensure legacy demo customers (cust-1) are ignored
+        if (parsed.customers && (!parsed.customers[0] || parsed.customers[0].id !== 'cust-1')) {
+          setCustomers(parsed.customers || []);
+          setPurifiers(parsed.purifiers || []);
+          setRenewals(parsed.renewals || []);
+          setServices(parsed.services || []);
+          setTechnicians(parsed.technicians || []);
+          setInventory(parsed.inventory || []);
+          setInvoices(parsed.invoices || []);
+          setAmcSubscriptions(parsed.amcSubscriptions || []);
+          if (parsed.business) setBusiness(parsed.business);
+        }
       }
     } catch {
       // fallback to initial
@@ -173,16 +178,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (data && data.data) {
           const cloud = data.data;
-          isRemoteUpdateRef.current = true;
-          if (cloud.customers) setCustomers(cloud.customers);
-          if (cloud.purifiers) setPurifiers(cloud.purifiers);
-          if (cloud.renewals) setRenewals(cloud.renewals);
-          if (cloud.services) setServices(cloud.services);
-          if (cloud.technicians) setTechnicians(cloud.technicians);
-          if (cloud.inventory) setInventory(cloud.inventory);
-          if (cloud.invoices) setInvoices(cloud.invoices);
-          if (cloud.amcSubscriptions) setAmcSubscriptions(cloud.amcSubscriptions);
-          if (cloud.business) setBusiness(cloud.business);
+          const isStaleDemo = cloud.customers?.[0]?.id === 'cust-1' || cloud.invoices?.[0]?.id === 'inv-102';
+
+          if (!isStaleDemo) {
+            isRemoteUpdateRef.current = true;
+            setCustomers(cloud.customers || []);
+            setPurifiers(cloud.purifiers || []);
+            setRenewals(cloud.renewals || []);
+            setServices(cloud.services || []);
+            setTechnicians(cloud.technicians || []);
+            setInventory(cloud.inventory || []);
+            setInvoices(cloud.invoices || []);
+            setAmcSubscriptions(cloud.amcSubscriptions || []);
+            if (cloud.business) setBusiness(cloud.business);
+          } else {
+            // Overwrite stale demo in Supabase with clean production data
+            supabase.from('ro_app_state').upsert({
+              id: 'primary_business',
+              data: {
+                customers: [],
+                purifiers: [],
+                renewals: [],
+                services: [],
+                technicians: [],
+                inventory: [],
+                invoices: [],
+                amcSubscriptions: [],
+                business: INITIAL_BUSINESS,
+              },
+              updated_at: new Date().toISOString(),
+            });
+          }
           setCloudSyncStatus('synced');
         } else {
           setCloudSyncStatus('synced');

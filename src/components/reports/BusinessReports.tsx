@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
 import { formatIndianCurrency } from '@/lib/utils';
 import {
@@ -47,222 +47,229 @@ interface RevenueDataPoint {
   notes: string;
 }
 
-const WEEKLY_REVENUE_DATA: RevenueDataPoint[] = [
-  {
-    period: 'Week 36 (Aug 25 - 31)',
-    label: 'W36 (Aug)',
-    serviceRevenue: 28500,
-    amcRevenue: 10500,
-    total: 39000,
-    jobsCompleted: 24,
-    growth: '+8.3%',
-    isPositive: true,
-    notes: 'Steady routine filter replacements',
-  },
-  {
-    period: 'Week 37 (Sep 01 - 07)',
-    label: 'W37 (Sep)',
-    serviceRevenue: 31200,
-    amcRevenue: 14000,
-    total: 45200,
-    jobsCompleted: 28,
-    growth: '+15.9%',
-    isPositive: true,
-    notes: 'Month-start scheduled maintenance push',
-  },
-  {
-    period: 'Week 38 (Sep 08 - 14)',
-    label: 'W38 (Sep)',
-    serviceRevenue: 29800,
-    amcRevenue: 12000,
-    total: 41800,
-    jobsCompleted: 26,
-    growth: '-7.5%',
-    isPositive: false,
-    notes: 'Festive midweek dip in call bookings',
-  },
-  {
-    period: 'Week 39 (Sep 15 - 21)',
-    label: 'W39 (Sep)',
-    serviceRevenue: 36400,
-    amcRevenue: 15500,
-    total: 51900,
-    jobsCompleted: 33,
-    growth: '+24.2%',
-    isPositive: true,
-    notes: 'Pre-filter & carbon membrane combo replacements',
-  },
-  {
-    period: 'Week 40 (Sep 22 - 28)',
-    label: 'W40 (Sep)',
-    serviceRevenue: 34200,
-    amcRevenue: 17500,
-    total: 51700,
-    jobsCompleted: 31,
-    growth: '-0.4%',
-    isPositive: false,
-    notes: 'Weekend emergency booster pump repairs',
-  },
-  {
-    period: 'Week 41 (Sep 29 - Oct 07)',
-    label: 'W41 (Current)',
-    serviceRevenue: 39800,
-    amcRevenue: 21000,
-    total: 60800,
-    jobsCompleted: 38,
-    growth: '+17.6%',
-    isPositive: true,
-    notes: 'Peak quarterly renewal cycle execution',
-  },
-];
-
-const MONTHLY_REVENUE_DATA: RevenueDataPoint[] = [
-  {
-    period: 'May 2026',
-    label: 'May 2026',
-    serviceRevenue: 112000,
-    amcRevenue: 42000,
-    total: 154000,
-    jobsCompleted: 96,
-    growth: '+10.2%',
-    isPositive: true,
-    notes: 'Summer water consumption surge; TDS checks',
-  },
-  {
-    period: 'Jun 2026',
-    label: 'Jun 2026',
-    serviceRevenue: 128500,
-    amcRevenue: 48000,
-    total: 176500,
-    jobsCompleted: 112,
-    growth: '+14.6%',
-    isPositive: true,
-    notes: 'Early monsoon pipe siltation filter replacements',
-  },
-  {
-    period: 'Jul 2026',
-    label: 'Jul 2026',
-    serviceRevenue: 118000,
-    amcRevenue: 52500,
-    total: 170500,
-    jobsCompleted: 104,
-    growth: '-3.4%',
-    isPositive: false,
-    notes: 'Heavy rains caused rescheduling of visits',
-  },
-  {
-    period: 'Aug 2026',
-    label: 'Aug 2026',
-    serviceRevenue: 135000,
-    amcRevenue: 59500,
-    total: 194500,
-    jobsCompleted: 122,
-    growth: '+14.1%',
-    isPositive: true,
-    notes: 'High demand for sediment & spun filters',
-  },
-  {
-    period: 'Sep 2026',
-    label: 'Sep 2026',
-    serviceRevenue: 142500,
-    amcRevenue: 66500,
-    total: 209000,
-    jobsCompleted: 131,
-    growth: '+7.5%',
-    isPositive: true,
-    notes: 'Annual AMC renewals wave and motor overhauls',
-  },
-  {
-    period: 'Oct 2026',
-    label: 'Oct 2026 (YTD)',
-    serviceRevenue: 158000,
-    amcRevenue: 77000,
-    total: 235000,
-    jobsCompleted: 148,
-    growth: '+12.4%',
-    isPositive: true,
-    notes: 'Highest performing month with automated reminders',
-  },
-];
-
-const YEARLY_REVENUE_DATA: RevenueDataPoint[] = [
-  {
-    period: 'FY 2023 - 24',
-    label: '2023-24',
-    serviceRevenue: 890000,
-    amcRevenue: 280000,
-    total: 1170000,
-    jobsCompleted: 780,
-    growth: 'Baseline',
-    isPositive: true,
-    notes: 'Initial client base onboarding across West Hyderabad',
-  },
-  {
-    period: 'FY 2024 - 25',
-    label: '2024-25',
-    serviceRevenue: 1240000,
-    amcRevenue: 490000,
-    total: 1730000,
-    jobsCompleted: 1140,
-    growth: '+47.8%',
-    isPositive: true,
-    notes: 'Introduction of custom AMC tiers and technician routing',
-  },
-  {
-    period: 'FY 2025 - 26',
-    label: '2025-26',
-    serviceRevenue: 1680000,
-    amcRevenue: 720000,
-    total: 2400000,
-    jobsCompleted: 1590,
-    growth: '+38.7%',
-    isPositive: true,
-    notes: 'WhatsApp reminder engine deployed with 85% retention',
-  },
-  {
-    period: 'FY 2026 - 27 (Projected)',
-    label: '2026-27*',
-    serviceRevenue: 2150000,
-    amcRevenue: 980000,
-    total: 3130000,
-    jobsCompleted: 2100,
-    growth: '+30.4%',
-    isPositive: true,
-    notes: 'On track to exceed ₹31 Lakhs with automated renewal tracking',
-  },
-];
-
-const SERVICE_TYPE_DATA = [
-  { name: 'Filter Replacement (Sediment / Carbon)', value: 42, color: '#2563eb' },
-  { name: 'Routine Sanitization & TDS Calibration', value: 28, color: '#06b6d4' },
-  { name: 'AMC Contract Renewals', value: 18, color: '#4f46e5' },
-  { name: 'Pump & Electrical / SMPS Spares', value: 12, color: '#f59e0b' },
-];
-
 export const BusinessReports: React.FC = () => {
-  const { customers, services, renewals, technicians, inventory, amcSubscriptions } = useApp();
+  const { customers, services, renewals, technicians, inventory, amcSubscriptions, invoices } = useApp();
   const [period, setPeriod] = useState<RevenuePeriod>('monthly');
 
   const completedServices = services.filter((s) => s.status === 'Completed');
   const avgServiceValue =
     completedServices.length > 0
-      ? Math.round(completedServices.reduce((sum, s) => sum + s.total, 0) / completedServices.length)
-      : 840;
+      ? Math.round(completedServices.reduce((sum, s) => sum + (s.total || 0), 0) / completedServices.length)
+      : invoices.length > 0
+      ? Math.round(invoices.reduce((sum, i) => sum + (i.amountPaid || i.total || 0), 0) / invoices.length)
+      : 0;
+
+  // Dynamic Weekly Revenue (last 5 weeks)
+  const weeklyData = useMemo<RevenueDataPoint[]>(() => {
+    const points: RevenueDataPoint[] = [];
+    const now = new Date();
+    for (let w = 4; w >= 0; w--) {
+      const end = new Date(now.getTime() - w * 7 * 24 * 60 * 60 * 1000);
+      const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      const label = w === 0 ? 'This Week' : (w + 'w ago');
+      const periodTitle = start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) + ' - ' + end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+      const periodInvoices = invoices.filter((inv) => {
+        const d = inv.invoiceDate;
+        return d && d >= startStr && d <= endStr;
+      });
+      const periodServices = services.filter((s) => {
+        const d = s.scheduledDate || s.completedTime;
+        return d && d >= startStr && d <= endStr && s.status === 'Completed';
+      });
+
+      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const aRev = 0;
+      const tot = sRev + aRev;
+
+      points.push({
+        period: periodTitle,
+        label,
+        serviceRevenue: sRev,
+        amcRevenue: aRev,
+        total: tot,
+        jobsCompleted: periodServices.length,
+        growth: '0%',
+        isPositive: true,
+        notes: periodServices.length > 0 ? (periodServices.length + ' jobs completed') : 'No services logged',
+      });
+    }
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1].total;
+      const curr = points[i].total;
+      if (prev > 0) {
+        const pct = Math.round(((curr - prev) / prev) * 100);
+        points[i].growth = (pct >= 0 ? '+' : '') + pct + '%';
+        points[i].isPositive = pct >= 0;
+      } else if (curr > 0) {
+        points[i].growth = '+100%';
+        points[i].isPositive = true;
+      } else {
+        points[i].growth = '0%';
+        points[i].isPositive = true;
+      }
+    }
+    return points;
+  }, [invoices, services]);
+
+  // Dynamic Monthly Revenue (last 6 months)
+  const monthlyData = useMemo<RevenueDataPoint[]>(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const points: RevenueDataPoint[] = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mName = monthNames[d.getMonth()];
+      const year = d.getFullYear();
+      const prefix = year + '-' + String(d.getMonth() + 1).padStart(2, '0');
+
+      const periodInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(prefix));
+      const periodServices = services.filter((s) => {
+        const dt = s.completedTime || s.scheduledDate;
+        return dt?.startsWith(prefix) && s.status === 'Completed';
+      });
+
+      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const aRev = 0;
+      const tot = sRev + aRev;
+
+      points.push({
+        period: mName + ' ' + year,
+        label: mName + " '" + String(year).slice(2),
+        serviceRevenue: sRev,
+        amcRevenue: aRev,
+        total: tot,
+        jobsCompleted: periodServices.length,
+        growth: '0%',
+        isPositive: true,
+        notes: periodServices.length > 0 ? (periodServices.length + ' visits logged') : 'No visits recorded',
+      });
+    }
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1].total;
+      const curr = points[i].total;
+      if (prev > 0) {
+        const pct = Math.round(((curr - prev) / prev) * 100);
+        points[i].growth = (pct >= 0 ? '+' : '') + pct + '%';
+        points[i].isPositive = pct >= 0;
+      } else if (curr > 0) {
+        points[i].growth = '+100%';
+        points[i].isPositive = true;
+      } else {
+        points[i].growth = '0%';
+        points[i].isPositive = true;
+      }
+    }
+    return points;
+  }, [invoices, services]);
+
+  // Dynamic Yearly Revenue (last 3 years)
+  const yearlyData = useMemo<RevenueDataPoint[]>(() => {
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const points: RevenueDataPoint[] = [];
+
+    for (let y = curYear - 2; y <= curYear; y++) {
+      const yStr = String(y);
+      const periodInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(yStr));
+      const periodServices = services.filter((s) => {
+        const dt = s.completedTime || s.scheduledDate;
+        return dt?.startsWith(yStr) && s.status === 'Completed';
+      });
+
+      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const aRev = 0;
+      const tot = sRev + aRev;
+
+      points.push({
+        period: 'FY ' + y,
+        label: '' + y,
+        serviceRevenue: sRev,
+        amcRevenue: aRev,
+        total: tot,
+        jobsCompleted: periodServices.length,
+        growth: '0%',
+        isPositive: true,
+        notes: periodServices.length > 0 ? (periodServices.length + ' jobs in ' + y) : ('No records for ' + y),
+      });
+    }
+
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1].total;
+      const curr = points[i].total;
+      if (prev > 0) {
+        const pct = Math.round(((curr - prev) / prev) * 100);
+        points[i].growth = (pct >= 0 ? '+' : '') + pct + '%';
+        points[i].isPositive = pct >= 0;
+      } else if (curr > 0) {
+        points[i].growth = '+100%';
+        points[i].isPositive = true;
+      } else {
+        points[i].growth = '0%';
+        points[i].isPositive = true;
+      }
+    }
+    return points;
+  }, [invoices, services]);
+
+  // Dynamic Service Distribution
+  const serviceTypeData = useMemo(() => {
+    if (services.length === 0) {
+      return [
+        { name: 'Filter Replacement', value: 0, color: '#2563eb' },
+        { name: 'Routine Sanitization & TDS', value: 0, color: '#06b6d4' },
+        { name: 'AMC Contract Renewals', value: 0, color: '#4f46e5' },
+        { name: 'Pump & Electrical Spares', value: 0, color: '#f59e0b' },
+      ];
+    }
+    const filterCount = services.filter((s) =>
+      s.serviceType?.toLowerCase().includes('filter') || s.serviceType?.toLowerCase().includes('membrane')
+    ).length;
+    const sanitCount = services.filter((s) =>
+      s.serviceType?.toLowerCase().includes('routine') ||
+      s.serviceType?.toLowerCase().includes('sanitization') ||
+      s.serviceType?.toLowerCase().includes('general')
+    ).length;
+    const amcCount = services.filter((s) => s.serviceType?.toLowerCase().includes('amc')).length;
+    const repairCount = Math.max(0, services.length - (filterCount + sanitCount + amcCount));
+
+    return [
+      { name: 'Filter Replacement', value: Math.round((filterCount / services.length) * 100), color: '#2563eb' },
+      { name: 'Routine Sanitization & TDS', value: Math.round((sanitCount / services.length) * 100), color: '#06b6d4' },
+      { name: 'AMC Contract Renewals', value: Math.round((amcCount / services.length) * 100), color: '#4f46e5' },
+      { name: 'Pump & Electrical Spares', value: Math.round((repairCount / services.length) * 100), color: '#f59e0b' },
+    ];
+  }, [services]);
 
   // Select active dataset
   const activeDataset =
     period === 'weekly'
-      ? WEEKLY_REVENUE_DATA
+      ? weeklyData
       : period === 'monthly'
-      ? MONTHLY_REVENUE_DATA
-      : YEARLY_REVENUE_DATA;
+      ? monthlyData
+      : yearlyData;
 
   // Aggregate stats for the active view
   const totalPeriodRevenue = activeDataset.reduce((sum, d) => sum + d.total, 0);
   const totalPeriodService = activeDataset.reduce((sum, d) => sum + d.serviceRevenue, 0);
   const totalPeriodAmc = activeDataset.reduce((sum, d) => sum + d.amcRevenue, 0);
   const totalPeriodJobs = activeDataset.reduce((sum, d) => sum + d.jobsCompleted, 0);
-  const latestDataPoint = activeDataset[activeDataset.length - 1];
+  const latestDataPoint = activeDataset[activeDataset.length - 1] || {
+    period: 'Current',
+    label: 'Now',
+    serviceRevenue: 0,
+    amcRevenue: 0,
+    total: 0,
+    jobsCompleted: 0,
+    growth: '0%',
+    isPositive: true,
+    notes: 'Awaiting new bookings',
+  };
   const serviceSharePercent = Math.round((totalPeriodService / (totalPeriodRevenue || 1)) * 100);
   const amcSharePercent = 100 - serviceSharePercent;
 
@@ -281,7 +288,7 @@ export const BusinessReports: React.FC = () => {
         </div>
 
         <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
-          Customer Retention Rate: 84.6%
+          System Status: {customers.length > 0 ? 'Active' : 'Ready'}
         </span>
       </div>
 
@@ -290,7 +297,7 @@ export const BusinessReports: React.FC = () => {
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <span className="text-xs text-slate-400 font-medium">Total Customer Base</span>
           <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{customers.length}</p>
-          <span className="text-[10px] text-emerald-600 font-semibold">+18.5% repeat rate</span>
+          <span className="text-[10px] text-emerald-600 font-semibold">{customers.length > 0 ? `${customers.length} registered` : 'No customers yet'}</span>
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
@@ -533,17 +540,17 @@ export const BusinessReports: React.FC = () => {
           <p className="leading-relaxed">
             {period === 'weekly' && (
               <>
-                Weekend peak demand generates over <strong>42% of customer requests and filter renewals</strong> on Saturdays and Sundays. Dispatching dedicated technicians to cluster localities (e.g. Madhapur & Kondapur) prevents weekday backlogs and accelerates cash settlements.
+                Weekend service bookings and filter renewals are prioritized by area locality. Dispatching technicians to cluster areas prevents delays and accelerates completion.
               </>
             )}
             {period === 'monthly' && (
               <>
-                Monsoon and post-monsoon months (July through October) exhibit a <strong>35% surge in sediment filter and carbon block replacements</strong> due to heightened municipal water turbidity. AMC contracts now contribute <strong>32.8% of predictable recurring monthly revenue</strong>.
+                Track scheduled maintenance and proactive WhatsApp renewal reminders to ensure steady monthly revenue and customer retention.
               </>
             )}
             {period === 'yearly' && (
               <>
-                The agency demonstrates a <strong>3-year Compound Annual Growth Rate (CAGR) of +41.5%</strong>. Purifier Customer Lifetime Value (LTV) currently averages <strong>₹8,650</strong> over a 3-year lifespan, driven by 84.6% AMC renewals and proactive WhatsApp service reminders.
+                Proactive service intervals and regular maintenance ensure high customer satisfaction and recurring AMC contract stability.
               </>
             )}
           </p>
@@ -560,7 +567,7 @@ export const BusinessReports: React.FC = () => {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-          {SERVICE_TYPE_DATA.map((item) => (
+          {serviceTypeData.map((item) => (
             <div key={item.name} className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-800 space-y-2">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">{item.name}</span>
@@ -596,7 +603,14 @@ export const BusinessReports: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {technicians.map((t) => (
+              {technicians.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                    No technicians added yet.
+                  </td>
+                </tr>
+              ) : (
+                technicians.map((t) => (
                 <tr key={t.id}>
                   <td className="py-3 px-3">
                     <p className="font-bold text-slate-900 dark:text-white">{t.name}</p>
@@ -620,7 +634,8 @@ export const BusinessReports: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
