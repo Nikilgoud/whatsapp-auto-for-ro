@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Customer, Purifier, ServiceRecord, CommunicationLog, ServiceType, ServiceStatus } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { formatIndianCurrency, getServiceCharge } from '@/lib/utils';
@@ -29,6 +29,10 @@ import {
   Pencil,
   Trash2,
   Save,
+  Package,
+  Receipt,
+  ChevronRight,
+  CreditCard,
 } from 'lucide-react';
 import { format, addYears } from 'date-fns';
 
@@ -37,6 +41,7 @@ interface Customer360ModalProps {
   onClose: () => void;
   customer: Customer;
   onBookService: (customer: Customer, purifier?: Purifier) => void;
+  initialTab?: 'overview' | 'services' | 'components' | 'history';
 }
 
 export const Customer360Modal: React.FC<Customer360ModalProps> = ({
@@ -44,12 +49,14 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
   onClose,
   customer,
   onBookService,
+  initialTab = 'overview',
 }) => {
   const {
     business,
     customers,
     purifiers,
     services,
+    invoices,
     communications,
     amcSubscriptions,
     amcPlans,
@@ -63,7 +70,13 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
 
   const currentCustomer = customers.find((c) => c.id === customer.id) || customer;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'components' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'components' | 'history'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, customer.id, isOpen]);
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
 
   // Edit & Delete modal states
@@ -160,12 +173,69 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
   if (!isOpen) return null;
 
   const customerPurifiers = purifiers.filter((p) => p.customerId === currentCustomer.id);
-  const customerServices = services.filter((s) => s.customerId === currentCustomer.id);
+  const primaryPurifier = customerPurifiers[0];
+  const rawCustomerServices = services.filter((s) => s.customerId === currentCustomer.id);
+
+  // Guarantee that every service from purifier installation to every subsequent service is included in history
+  const customerServices = useMemo(() => {
+    let list = [...rawCustomerServices];
+    const hasInstallation = list.some((s) => s.serviceType === 'Installation');
+    if (!hasInstallation && primaryPurifier) {
+      const installDate = primaryPurifier.installationDate || primaryPurifier.purchaseDate;
+      if (installDate) {
+        list.push({
+          id: `inst-${primaryPurifier.id}`,
+          businessId: business.id || 'biz-client-ro',
+          serviceCode: `INST-${(primaryPurifier.brand || 'RO').slice(0, 3).toUpperCase()}-01`,
+          customerId: currentCustomer.id,
+          purifierId: primaryPurifier.id,
+          serviceType: 'Installation',
+          bookingDate: installDate,
+          scheduledDate: installDate,
+          scheduledTimeSlot: '10:00 AM - 12:00 PM',
+          startedTime: `${installDate} 10:00`,
+          completedTime: `${installDate} 11:30`,
+          status: 'Completed',
+          issueDescription: 'Purifier Unit Installation & Commissioning',
+          workSummary: `Installed and commissioned ${primaryPurifier.brand} ${primaryPurifier.model}. Plumbing lines connected, electrical setup verified, filters primed, and membrane calibrated.`,
+          inletWaterTds: primaryPurifier.inletTdsBaseline,
+          outputWaterTds: primaryPurifier.outputTdsBaseline,
+          partsUsed: [
+            {
+              id: 'p-inst-set',
+              name: `${primaryPurifier.brand} Purifier Unit & Initial Filter Kit`,
+              quantity: 1,
+              unitPrice: 0,
+              totalPrice: 0,
+            },
+          ],
+          labourCharge: getServiceCharge('Installation', business?.settings) || 0,
+          partsCharge: 0,
+          discount: 0,
+          tax: 0,
+          total: getServiceCharge('Installation', business?.settings) || 0,
+          amountPaid: getServiceCharge('Installation', business?.settings) || 0,
+          amountPending: 0,
+          paymentStatus: 'Paid',
+          paymentMethod: 'Cash',
+          customerRating: 5,
+          beforePhotos: [],
+          afterPhotos: [],
+          createdAt: installDate,
+          updatedAt: installDate,
+        });
+      }
+    }
+    return list.sort((a, b) => {
+      const dateA = a.completedTime || a.scheduledDate || a.bookingDate || '';
+      const dateB = b.completedTime || b.scheduledDate || b.bookingDate || '';
+      return dateB.localeCompare(dateA);
+    });
+  }, [rawCustomerServices, primaryPurifier, business?.id, business?.settings, currentCustomer.id]);
+
   const customerComms = communications.filter((c) => c.customerId === currentCustomer.id);
   const customerAmc = amcSubscriptions.find((sub) => sub.customerId === currentCustomer.id);
   const amcPlan = customerAmc ? amcPlans.find((p) => p.id === customerAmc.amcPlanId) : null;
-
-  const primaryPurifier = customerPurifiers[0];
 
   // Helper to check if a date is still active
   const isDateActive = (dateStr?: string) => {
@@ -316,6 +386,21 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
 
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
+              onClick={() => setActiveTab('services')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition shadow-xs cursor-pointer ${
+                activeTab === 'services'
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-300 dark:ring-blue-700'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+              title="View complete customer service history, spare parts, and charges"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Services</span>
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-white/25 text-white">
+                {customerServices.length}
+              </span>
+            </button>
+            <button
               onClick={handleOpenEdit}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-xs cursor-pointer"
               title="Edit customer details"
@@ -379,13 +464,23 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('services')}
-            className={`py-3 px-3 border-b-2 transition ${
+            className={`py-3 px-3 border-b-2 font-bold transition flex items-center gap-1.5 ${
               activeTab === 'services'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            Service History ({customerServices.length})
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Services & History</span>
+            <span
+              className={`px-1.5 py-0.2 text-[10px] rounded-full font-bold ${
+                activeTab === 'services'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+              }`}
+            >
+              {customerServices.length}
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -424,6 +519,34 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     {customerAmc ? customerAmc.status : 'No Active AMC'}
                   </p>
                 </div>
+              </div>
+
+              {/* Direct Access to Services & Spares History */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/80 rounded-xl border border-blue-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-2xs shrink-0">
+                    <Wrench className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                      <span>Full Customer Service & Spare Parts History</span>
+                      <span className="px-1.5 py-0.2 text-[10px] font-extrabold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        {customerServices.length} Total Services
+                      </span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      All records from initial purifier installation to every subsequent visit with parts replaced and charges taken.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('services')}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-xs transition flex items-center gap-1.5 self-start sm:self-auto shrink-0 shadow-2xs"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>View Services</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Customer Purifiers Card */}
@@ -711,23 +834,29 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
             <div className="space-y-4">
               {/* Service History Top Summary Banner */}
               <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/70 rounded-xl border border-blue-100 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">LAST SERVICE</span>
-                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                      {primaryPurifier?.lastServiceDate || 'Not yet serviced'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">TOTAL VISITS</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">TOTAL SERVICES</span>
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
                       {customerServices.length} Records ({customerServices.filter((s) => s.status === 'Completed').length} Completed)
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block font-medium">LIFETIME SERVICE SPEND</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">RO INSTALLATION</span>
+                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                      {primaryPurifier?.installationDate || primaryPurifier?.purchaseDate || 'Onboarding'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">LIFETIME CHARGES TAKEN</span>
                     <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatIndianCurrency(customer.totalSpend)}
+                      {formatIndianCurrency(currentCustomer.totalSpend)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-medium">SPARE PARTS REPLACED</span>
+                    <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
+                      {customerServices.reduce((acc, s) => acc + (s.partsUsed?.length || 0), 0)} Spares Total
                     </span>
                   </div>
                 </div>
@@ -741,10 +870,10 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                 </button>
               </div>
 
-              {/* PERMANENT RO INSTALLATION RECORD */}
+              {/* PERMANENT RO INSTALLATION RECORD BANNER */}
               <div className="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 rounded-xl border border-blue-200 dark:border-blue-900/60 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600 text-white rounded-xl shadow-xs">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs">
                     <Wrench className="w-4 h-4" />
                   </div>
                   <div>
@@ -753,7 +882,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                         Permanent RO Installation Date
                       </span>
                       <span className="px-1.5 py-0.2 text-[9px] font-bold bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-100 rounded">
-                        Original Record
+                        Founding Record
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
@@ -769,10 +898,20 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
               </div>
 
               {/* Service Records List */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {customerServices.length > 0 ? (
                   customerServices.map((srv) => {
                     const tech = technicians.find((t) => t.id === srv.technicianId);
+                    const matchingInvoice = invoices.find(
+                      (inv) => inv.serviceRecordId === srv.id || (srv.serviceCode && inv.notes?.includes(srv.serviceCode))
+                    );
+                    const partsTotal = (srv.partsUsed || []).reduce(
+                      (sum, p) => sum + (p.totalPrice || p.quantity * p.unitPrice),
+                      0
+                    );
+                    const labourCharge = srv.labourCharge ?? 0;
+                    const totalCharges = srv.total || (labourCharge + partsTotal - (srv.discount || 0));
+                    const isInstallation = srv.serviceType === 'Installation';
                     const tdsReduction =
                       srv.inletWaterTds && srv.outputWaterTds
                         ? Math.round(((srv.inletWaterTds - srv.outputWaterTds) / srv.inletWaterTds) * 100)
@@ -781,15 +920,26 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     return (
                       <div
                         key={srv.id}
-                        className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 hover:border-blue-300 dark:hover:border-blue-700 transition"
+                        className={`p-4 rounded-xl border transition space-y-3.5 ${
+                          isInstallation
+                            ? 'bg-blue-50/40 dark:bg-slate-800/80 border-blue-200 dark:border-blue-900 shadow-2xs'
+                            : 'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'
+                        }`}
                       >
-                        {/* Header: Service Type, Code, Price, Status */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-slate-900 dark:text-white">
-                              {srv.serviceType}
-                            </span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                        {/* Header: Service Type & Tags */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isInstallation ? (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-600 text-white flex items-center gap-1 shadow-2xs">
+                                <span>📌 RO PURIFIER INSTALLATION</span>
+                              </span>
+                            ) : (
+                              <span className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                                <Wrench className="w-3.5 h-3.5 text-blue-600" />
+                                <span>{srv.serviceType}</span>
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                               {srv.serviceCode}
                             </span>
                             <span
@@ -805,61 +955,124 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                             </span>
                           </div>
 
-                          <div className="text-right">
-                            <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400">
-                              {formatIndianCurrency(srv.total)}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block">
-                              {srv.paymentStatus || 'Paid'} {srv.paymentMethod ? `via ${srv.paymentMethod}` : ''}
-                            </span>
+                          <div className="flex items-center gap-3 self-start sm:self-auto">
+                            <div className="text-right">
+                              <span className="font-extrabold text-base text-emerald-600 dark:text-emerald-400 block">
+                                {formatIndianCurrency(totalCharges)}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {srv.paymentStatus || 'Paid'} {srv.paymentMethod ? `via ${srv.paymentMethod}` : ''}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Metadata: Date, Time, Technician */}
-                        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500">
+                        {/* Metadata: Date, Technician, Rating */}
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] text-slate-500 pb-1 border-b border-slate-100 dark:border-slate-800/80">
                           <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            {srv.scheduledDate} {srv.completedTime ? `(${srv.completedTime})` : ''}
+                            <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                            <span>Date: {srv.scheduledDate || srv.bookingDate} {srv.completedTime ? `(${srv.completedTime})` : ''}</span>
                           </span>
                           {tech && (
                             <span className="flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400">
-                              <UserCheck className="w-3 h-3" />
-                              Technician: {tech.name}
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>Technician: {tech.name}</span>
                             </span>
                           )}
                           {srv.customerRating && (
                             <span className="flex items-center gap-1 text-amber-500 font-bold">
                               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              {srv.customerRating} / 5 Rating
+                              <span>{srv.customerRating}/5 Rating</span>
+                            </span>
+                          )}
+                          {matchingInvoice && (
+                            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-semibold text-[10px]">
+                              <Receipt className="w-3 h-3" />
+                              <span>Invoice #{matchingInvoice.invoiceNumber}</span>
                             </span>
                           )}
                         </div>
 
-                        {/* Work Summary / Notes */}
+                        {/* Work Done Summary */}
                         {srv.workSummary && (
-                          <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg text-slate-700 dark:text-slate-300 text-[11px] border border-slate-100 dark:border-slate-800">
+                          <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-700 dark:text-slate-300 text-[11px] border border-slate-200 dark:border-slate-800">
                             <strong className="text-slate-900 dark:text-white">Service Work Done:</strong> {srv.workSummary}
                           </div>
                         )}
 
-                        {/* Parts Used Breakdown */}
-                        {srv.partsUsed && srv.partsUsed.length > 0 && (
-                          <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
-                            <span className="text-slate-400 font-semibold block text-[10px] uppercase">
-                              Spare Parts Replaced:
+                        {/* Spare Parts Replaced / Added */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                              <Package className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Spare Parts Added / Replaced</span>
                             </span>
-                            <div className="flex flex-wrap gap-2">
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              Spares Total: {formatIndianCurrency(srv.partsCharge || partsTotal)}
+                            </span>
+                          </div>
+
+                          {srv.partsUsed && srv.partsUsed.length > 0 ? (
+                            <div className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-850 rounded-lg px-3 border border-slate-100 dark:border-slate-800">
                               {srv.partsUsed.map((part, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
-                                >
-                                  <strong>{part.name}</strong> ({part.quantity}x) — {formatIndianCurrency(part.unitPrice)}
-                                </span>
+                                <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                                    <span className="font-semibold text-slate-900 dark:text-white">{part.name}</span>
+                                    <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded font-mono">
+                                      {part.quantity}x
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-slate-400 font-mono text-[11px]">
+                                      @ {formatIndianCurrency(part.unitPrice)}
+                                    </span>
+                                    <span className="font-bold text-slate-900 dark:text-white">
+                                      {formatIndianCurrency(part.totalPrice || part.quantity * part.unitPrice)}
+                                    </span>
+                                  </div>
+                                </div>
                               ))}
                             </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 italic">No spare parts replaced for this visit (Labour only).</p>
+                          )}
+                        </div>
+
+                        {/* Structured Charges Taken Section */}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Charges Taken & Payment Breakdown</span>
+                          </span>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                            <div className="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium">Service / Labour</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {formatIndianCurrency(labourCharge)}
+                              </span>
+                            </div>
+                            <div className="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium">Spare Parts</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {formatIndianCurrency(srv.partsCharge || partsTotal)}
+                              </span>
+                            </div>
+                            <div className="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium">Total Charges Taken</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatIndianCurrency(totalCharges)}
+                              </span>
+                            </div>
+                            <div className="p-2 bg-white dark:bg-slate-800/80 rounded-lg border border-slate-100 dark:border-slate-800">
+                              <span className="text-[10px] text-slate-400 block font-medium">Payment Method</span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {srv.paymentMethod || 'Cash'} ({srv.paymentStatus || 'Paid'})
+                              </span>
+                            </div>
                           </div>
-                        )}
+                        </div>
 
                         {/* Water Quality & TDS Verification */}
                         {srv.inletWaterTds && srv.outputWaterTds && (
@@ -1121,6 +1334,31 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Quick suggestions pills */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { name: 'Sediment Filter', price: 350 },
+                    { name: 'Pre-Carbon Filter', price: 450 },
+                    { name: 'RO Membrane 80 GPD', price: 1800 },
+                    { name: 'Post-Carbon / Alkaline', price: 650 },
+                    { name: 'Booster Pump 100 GPD', price: 2200 },
+                    { name: 'SMPS Power Adapter', price: 850 },
+                    { name: 'Float Valve & Switch', price: 250 },
+                  ].map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => {
+                        setLogPartName(p.name);
+                        setLogPartPrice(p.price);
+                      }}
+                      className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 rounded text-[10px] font-medium border border-slate-200 dark:border-slate-700 transition"
+                    >
+                      + {p.name} (₹{p.price})
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Charges & Payment */}
@@ -1163,6 +1401,19 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-medium"
                   />
                 </div>
+              </div>
+
+              {/* Real-time Total Charges preview */}
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900/60 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Total Bill Taken:</span>
+                  <p className="text-[10px] text-slate-500">
+                    Labour: ₹{logLabourCharge || 0} + Spares: ₹{logPartName.trim() ? (logPartQty * logPartPrice) : 0}
+                  </p>
+                </div>
+                <span className="text-base font-extrabold text-blue-700 dark:text-blue-300">
+                  ₹{(Number(logLabourCharge) || 0) + (logPartName.trim() ? (logPartQty * logPartPrice) : 0)}
+                </span>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">

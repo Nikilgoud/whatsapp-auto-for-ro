@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Filter,
+  Wrench,
 } from 'lucide-react';
 
 interface CustomerListProps {
@@ -35,6 +36,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   const { customers, purifiers, searchTerm, setSearchTerm } = useApp();
   const [filterType, setFilterType] = useState<string>('ALL');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [modalInitialTab, setModalInitialTab] = useState<'overview' | 'services' | 'components' | 'history'>('overview');
 
   // WhatsApp modal state
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
@@ -168,7 +170,10 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   return (
                     <tr
                       key={cust.id}
-                      onClick={() => setSelectedCustomer(cust)}
+                      onClick={() => {
+                        setSelectedCustomer(cust);
+                        setModalInitialTab('overview');
+                      }}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition cursor-pointer group"
                     >
                       <td className="py-3.5 px-4">
@@ -245,6 +250,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       <td className="py-3.5 px-4 text-right">
                         <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCustomer(cust);
+                              setModalInitialTab('services');
+                            }}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900 rounded-lg font-semibold text-[11px] transition flex items-center gap-1 shadow-2xs"
+                            title="View Services & Spare Parts History"
+                          >
+                            <Wrench className="w-3.5 h-3.5" />
+                            <span>Services</span>
+                          </button>
+                          <button
                             onClick={(e) => handleOpenWhatsApp(e, cust)}
                             className="p-1.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-lg transition"
                             title="WhatsApp"
@@ -282,6 +299,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
           onClose={() => setSelectedCustomer(null)}
           customer={selectedCustomer}
           onBookService={onBookService}
+          initialTab={modalInitialTab}
         />
       )}
 
