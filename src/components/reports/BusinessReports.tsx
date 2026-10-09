@@ -80,7 +80,9 @@ export const BusinessReports: React.FC = () => {
         return d && d >= startStr && d <= endStr && s.status === 'Completed';
       });
 
-      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const invSum = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const srvSum = periodServices.reduce((sum, s) => sum + (s.amountPaid || s.total || 0), 0);
+      const sRev = Math.max(invSum, srvSum);
       const aRev = 0;
       const tot = sRev + aRev;
 
@@ -133,7 +135,9 @@ export const BusinessReports: React.FC = () => {
         return dt?.startsWith(prefix) && s.status === 'Completed';
       });
 
-      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const invSum = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const srvSum = periodServices.reduce((sum, s) => sum + (s.amountPaid || s.total || 0), 0);
+      const sRev = Math.max(invSum, srvSum);
       const aRev = 0;
       const tot = sRev + aRev;
 
@@ -182,7 +186,9 @@ export const BusinessReports: React.FC = () => {
         return dt?.startsWith(yStr) && s.status === 'Completed';
       });
 
-      const sRev = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const invSum = periodInvoices.reduce((sum, inv) => sum + (inv.amountPaid || inv.total || 0), 0);
+      const srvSum = periodServices.reduce((sum, s) => sum + (s.amountPaid || s.total || 0), 0);
+      const sRev = Math.max(invSum, srvSum);
       const aRev = 0;
       const tot = sRev + aRev;
 

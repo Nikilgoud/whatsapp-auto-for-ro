@@ -98,11 +98,13 @@ interface AppContextType {
   addTechnician: (techData: Omit<Technician, 'id' | 'completedJobs' | 'pendingJobs' | 'revenueGenerated' | 'rating'>) => Technician;
   deleteTechnician: (id: string) => void;
   assignTechnicianToService: (serviceId: string, technicianId: string) => void;
+  addServiceRecord: (record: Omit<ServiceRecord, 'id' | 'serviceCode' | 'createdAt' | 'updatedAt'>) => ServiceRecord;
   batchImportCustomers: (importedCustomers: Customer[], importedPurifiers: Purifier[]) => void;
   addAmcSubscription: (data: Omit<AMCSubscription, 'id' | 'subscriptionCode'>) => AMCSubscription;
   addAmcPlan: (plan: Omit<AMCPlan, 'id'>) => AMCPlan;
-  addServiceRecord: (record: Omit<ServiceRecord, 'id' | 'serviceCode' | 'createdAt' | 'updatedAt'>) => ServiceRecord;
   resetDemoData: () => void;
+  syncWithCloud: () => Promise<void>;
+  lastCloudSyncTime: string | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -130,17 +132,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [searchTerm, setSearchTerm] = useState<string>('');
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'needs_table'>('syncing');
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(null);
   const isRemoteUpdateRef = useRef(false);
+  const hasLoadedFromCloudRef = useRef(false);
+
+  // Fetch latest cloud data from Supabase
+  const fetchCloudData = async () => {
+    try {
+      setCloudSyncStatus('syncing');
+      const { data, error } = await supabase
+        .from('ro_app_state')
+        .select('data')
+        .eq('id', 'primary_business')
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+          setCloudSyncStatus('needs_table');
+        } else {
+          setCloudSyncStatus('offline');
+        }
+        return;
+      }
+
+      if (data && data.data) {
+        const cloud = data.data;
+        const isStaleDemo = cloud.customers?.[0]?.id === 'cust-1' || cloud.invoices?.[0]?.id === 'inv-102';
+
+        if (!isStaleDemo) {
+          isRemoteUpdateRef.current = true;
+          if (Array.isArray(cloud.customers)) setCustomers(cloud.customers);
+          if (Array.isArray(cloud.purifiers)) setPurifiers(cloud.purifiers);
+          if (Array.isArray(cloud.renewals)) setRenewals(cloud.renewals);
+          if (Array.isArray(cloud.services)) setServices(cloud.services);
+          if (Array.isArray(cloud.technicians)) setTechnicians(cloud.technicians);
+          if (Array.isArray(cloud.inventory)) setInventory(cloud.inventory);
+          
+          let activeInvoices = Array.isArray(cloud.invoices) ? cloud.invoices : [];
+          if (Array.isArray(cloud.services)) {
+            const existingServiceIds = new Set(activeInvoices.map((inv: any) => inv.serviceRecordId));
+            const missingInvoices = cloud.services
+              .filter((srv: any) => srv.status === 'Completed' && !existingServiceIds.has(srv.id))
+              .map((srv: any, idx: number) => {
+                const partsSum = (srv.partsUsed || []).reduce((sum: number, p: any) => sum + (p.totalPrice || p.quantity * p.unitPrice || 0), 0);
+                const gross = srv.total ?? ((srv.labourCharge || 0) + partsSum - (srv.discount || 0));
+                const paid = srv.amountPaid ?? gross;
+                const bal = Math.max(0, gross - paid);
+                return {
+                  id: `inv-${Date.now()}-${idx}`,
+                  businessId: srv.businessId || 'biz-client-ro',
+                  invoiceNumber: `AQ-RO-${Math.floor(1000 + Math.random() * 9000)}`,
+                  customerId: srv.customerId,
+                  serviceRecordId: srv.id,
+                  invoiceDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
+                  dueDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
+                  items: [
+                    {
+                      id: 'i-labour',
+                      description: `${srv.serviceType || 'Service'} - Labour / Service Charges`,
+                      quantity: 1,
+                      unitPrice: srv.labourCharge || 0,
+                      amount: srv.labourCharge || 0,
+                    },
+                    ...(srv.partsUsed || []).map((p: any, pIdx: number) => ({
+                      id: `i-part-${pIdx}`,
+                      description: p.name,
+                      quantity: p.quantity || 1,
+                      unitPrice: p.unitPrice || 0,
+                      amount: p.totalPrice || (p.quantity || 1) * (p.unitPrice || 0),
+                    })),
+                  ],
+                  subtotal: (srv.labourCharge || 0) + partsSum,
+                  discount: srv.discount || 0,
+                  gstRate: 0,
+                  gstAmount: 0,
+                  total: gross,
+                  amountPaid: paid,
+                  balanceDue: bal,
+                  paymentStatus: bal === 0 ? 'Paid' : paid > 0 ? 'Partially paid' : 'Pending',
+                  notes: `Auto-generated for Service: ${srv.serviceCode}`,
+                };
+              });
+            if (missingInvoices.length > 0) {
+              activeInvoices = [...missingInvoices, ...activeInvoices];
+            }
+          }
+          setInvoices(activeInvoices);
+          if (Array.isArray(cloud.amcSubscriptions)) setAmcSubscriptions(cloud.amcSubscriptions);
+          if (cloud.business) setBusiness(cloud.business);
+        } else {
+          // Overwrite stale demo in Supabase with clean production data
+          await supabase.from('ro_app_state').upsert({
+            id: 'primary_business',
+            data: {
+              customers: [],
+              purifiers: [],
+              renewals: [],
+              services: [],
+              technicians: [],
+              inventory: [],
+              invoices: [],
+              amcSubscriptions: [],
+              business: INITIAL_BUSINESS,
+            },
+            updated_at: new Date().toISOString(),
+          });
+        }
+        hasLoadedFromCloudRef.current = true;
+        setCloudSyncStatus('synced');
+        setLastCloudSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } else {
+        hasLoadedFromCloudRef.current = true;
+        setCloudSyncStatus('synced');
+        setLastCloudSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      }
+    } catch {
+      setCloudSyncStatus('offline');
+    }
+  };
+
+  // Explicit function to trigger sync on demand
+  const syncWithCloud = async () => {
+    await fetchCloudData();
+  };
 
   // 1. Initial Load: Load local storage instantly, then sync latest from Supabase
   useEffect(() => {
     try {
-      // Clear legacy demo cache keys
       localStorage.removeItem('ro_renewal_engine_v1_store');
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure legacy demo customers (cust-1) are ignored
         if (parsed.customers && (!parsed.customers[0] || parsed.customers[0].id !== 'cust-1')) {
           setCustomers(parsed.customers || []);
           setPurifiers(parsed.purifiers || []);
@@ -158,67 +280,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setMounted(true);
 
-    // Fetch latest cloud data from Supabase
-    const fetchCloudData = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('ro_app_state')
-          .select('data')
-          .eq('id', 'primary_business')
-          .maybeSingle();
+    fetchCloudData();
 
-        if (error) {
-          if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-            setCloudSyncStatus('needs_table');
-          } else {
-            setCloudSyncStatus('offline');
-          }
-          return;
-        }
-
-        if (data && data.data) {
-          const cloud = data.data;
-          const isStaleDemo = cloud.customers?.[0]?.id === 'cust-1' || cloud.invoices?.[0]?.id === 'inv-102';
-
-          if (!isStaleDemo) {
-            isRemoteUpdateRef.current = true;
-            setCustomers(cloud.customers || []);
-            setPurifiers(cloud.purifiers || []);
-            setRenewals(cloud.renewals || []);
-            setServices(cloud.services || []);
-            setTechnicians(cloud.technicians || []);
-            setInventory(cloud.inventory || []);
-            setInvoices(cloud.invoices || []);
-            setAmcSubscriptions(cloud.amcSubscriptions || []);
-            if (cloud.business) setBusiness(cloud.business);
-          } else {
-            // Overwrite stale demo in Supabase with clean production data
-            supabase.from('ro_app_state').upsert({
-              id: 'primary_business',
-              data: {
-                customers: [],
-                purifiers: [],
-                renewals: [],
-                services: [],
-                technicians: [],
-                inventory: [],
-                invoices: [],
-                amcSubscriptions: [],
-                business: INITIAL_BUSINESS,
-              },
-              updated_at: new Date().toISOString(),
-            });
-          }
-          setCloudSyncStatus('synced');
-        } else {
-          setCloudSyncStatus('synced');
-        }
-      } catch {
-        setCloudSyncStatus('offline');
+    // Re-fetch when user switches back to this tab or unlocks mobile phone
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCloudData();
       }
     };
-
-    fetchCloudData();
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', fetchCloudData);
 
     // 2. Realtime listener: Automatically updates computer when mobile edits, and vice-versa
     const channel = supabase
@@ -244,20 +315,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (cloud.invoices) setInvoices(cloud.invoices);
             if (cloud.amcSubscriptions) setAmcSubscriptions(cloud.amcSubscriptions);
             if (cloud.business) setBusiness(cloud.business);
+            hasLoadedFromCloudRef.current = true;
             setCloudSyncStatus('synced');
+            setLastCloudSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
           }
         }
       )
       .subscribe();
 
     return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', fetchCloudData);
       supabase.removeChannel(channel);
     };
   }, []);
 
   // 3. Save to LocalStorage and Supabase (debounced by 800ms)
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !hasLoadedFromCloudRef.current) return;
 
     const payload = {
       customers,
@@ -674,7 +749,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newInvoice: Invoice = {
       id: `inv-${Date.now()}`,
       businessId: business.id,
-      invoiceNumber: `${business.settings.invoicePrefix}${Math.floor(1000 + Math.random() * 9000)}`,
+      invoiceNumber: `${business.settings?.invoicePrefix || 'AQ-RO-'}${Math.floor(1000 + Math.random() * 9000)}`,
       customerId: service.customerId,
       serviceRecordId: service.id,
       invoiceDate: todayFormatted,
@@ -937,6 +1012,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           )
         );
       }
+
+      // Automatically generate Invoice for completed service
+      const partsTotal = (recordData.partsUsed || []).reduce((sum, p) => sum + (p.totalPrice || p.quantity * p.unitPrice), 0);
+      const grossTotal = recordData.total ?? ((recordData.labourCharge || 0) + partsTotal - (recordData.discount || 0));
+      const amountPaid = recordData.amountPaid ?? grossTotal;
+      const balance = Math.max(0, grossTotal - amountPaid);
+      const paymentStatus: PaymentStatus =
+        balance === 0 ? 'Paid' : amountPaid > 0 ? 'Partially paid' : 'Pending';
+
+      const invoiceId = `inv-${Date.now()}`;
+      const newInvoice: Invoice = {
+        id: invoiceId,
+        businessId: business.id || 'biz-client-ro',
+        invoiceNumber: `${business.settings?.invoicePrefix || 'AQ-RO-'}${Math.floor(1000 + Math.random() * 9000)}`,
+        customerId: recordData.customerId,
+        serviceRecordId: newId,
+        invoiceDate: recordData.scheduledDate || nowStr,
+        dueDate: recordData.scheduledDate || nowStr,
+        items: [
+          {
+            id: 'i-labour',
+            description: `${recordData.serviceType} - Labour / Service Charges`,
+            quantity: 1,
+            unitPrice: recordData.labourCharge || 0,
+            amount: recordData.labourCharge || 0,
+          },
+          ...(recordData.partsUsed || []).map((p, idx) => ({
+            id: `i-part-${idx}`,
+            description: p.name,
+            quantity: p.quantity,
+            unitPrice: p.unitPrice,
+            amount: p.totalPrice || p.quantity * p.unitPrice,
+          })),
+        ],
+        subtotal: (recordData.labourCharge || 0) + partsTotal,
+        discount: recordData.discount || 0,
+        gstRate: business.settings?.enableGst ? 18 : 0,
+        gstAmount: 0,
+        total: grossTotal,
+        amountPaid: amountPaid,
+        balanceDue: balance,
+        paymentStatus,
+        notes: `Service Code: ${code}`,
+      };
+
+      setInvoices((prev) => [newInvoice, ...prev]);
     }
 
     return newRecord;
@@ -1005,6 +1126,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAmcPlan,
         addServiceRecord,
         resetDemoData,
+        syncWithCloud,
+        lastCloudSyncTime,
       }}
     >
       {children}

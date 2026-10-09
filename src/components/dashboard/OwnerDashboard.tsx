@@ -65,7 +65,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const [selectedPurForWhatsApp, setSelectedPurForWhatsApp] = useState<Purifier | null>(null);
   const [defaultTemplate, setDefaultTemplate] = useState<string>('SERVICE_DUE');
 
-  // Dynamic monthly revenue trend from real invoices
+  // Dynamic monthly revenue trend from real invoices & completed services
   const revenueChartData = useMemo(() => {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const now = new Date();
@@ -78,12 +78,20 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       const prefix = `${yearStr}-${mStr}`;
 
       const monthInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(prefix));
-      const rev = monthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
-      const srvCount = monthInvoices.length;
+      const invRev = monthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+
+      const monthServices = services.filter((srv) =>
+        srv.status === 'Completed' &&
+        (srv.completedTime?.startsWith(prefix) || srv.scheduledDate?.startsWith(prefix) || srv.createdAt?.startsWith(prefix))
+      );
+      const srvRev = monthServices.reduce((sum, srv) => sum + (srv.amountPaid || srv.total || 0), 0);
+
+      const rev = Math.max(invRev, srvRev);
+      const srvCount = Math.max(monthInvoices.length, monthServices.length);
       result.push({ month: mName, revenue: rev, services: srvCount });
     }
     return result;
-  }, [invoices]);
+  }, [invoices, services]);
 
   // Revenue engine calculation
   const revenueStats = calculateRevenueOpportunities(
@@ -104,11 +112,20 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
     .filter((inv) => inv.paymentStatus !== 'Paid')
     .reduce((sum, inv) => sum + (inv.balanceDue || inv.total - inv.amountPaid), 0);
 
-  // Dynamic monthly calculations (strict production-ready without hardcoded values)
+  // Dynamic monthly calculations (reflects all paid invoices and completed paid services)
   const currentNow = new Date();
   const currentMonthPrefix = `${currentNow.getFullYear()}-${String(currentNow.getMonth() + 1).padStart(2, '0')}`;
+  
   const currentMonthInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(currentMonthPrefix));
-  const currentMonthRevenue = currentMonthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+  const invoiceRevenue = currentMonthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+
+  const currentMonthServices = services.filter((srv) =>
+    srv.status === 'Completed' &&
+    (srv.completedTime?.startsWith(currentMonthPrefix) || srv.scheduledDate?.startsWith(currentMonthPrefix) || srv.createdAt?.startsWith(currentMonthPrefix))
+  );
+  const serviceRevenue = currentMonthServices.reduce((sum, srv) => sum + (srv.amountPaid || srv.total || 0), 0);
+
+  const currentMonthRevenue = Math.max(invoiceRevenue, serviceRevenue);
   const customersThisMonth = customers.filter((c) => c.createdAt?.startsWith(currentMonthPrefix)).length;
   const activeTechniciansCount = technicians.filter((t) => t.status !== 'Inactive').length;
 

@@ -19,9 +19,10 @@ import {
   Loader2,
   Wrench,
   Sparkles,
+  Receipt,
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
-import { getServiceCharge } from '@/lib/utils';
+import { getServiceCharge, formatIndianCurrency } from '@/lib/utils';
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -52,8 +53,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
   const [customPurifierType, setCustomPurifierType] = useState('RO + Alkaline');
 
   // STEP 5: Service, Warranty & Next Service Due
-  const [currentServiceTaken, setCurrentServiceTaken] = useState('');
+  const [currentServiceTaken, setCurrentServiceTaken] = useState('New Installation & Setup');
   const [serviceLabourCharge, setServiceLabourCharge] = useState<number>(0);
+  const [sparePartName, setSparePartName] = useState('');
   const [servicePartsCharge, setServicePartsCharge] = useState<number>(0);
   const [serviceDate, setServiceDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [nextIntervalChoice, setNextIntervalChoice] = useState<'3_MONTHS' | '6_MONTHS' | 'CUSTOM'>('3_MONTHS');
@@ -206,7 +208,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         tags: ['New Customer'],
         notes,
         whatsappOptOut: false,
-        totalSpend: 0,
+        totalSpend: (Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0),
         pendingBalance: 0,
       },
       {
@@ -230,49 +232,50 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
       } as any
     );
 
-    // If initial service was performed, log it in Service History
-    if (currentServiceTaken.trim()) {
-      addServiceRecord({
-        businessId: business.id,
-        customerId: newCustomer.id,
-        purifierId: `pur-${newCustomer.id}`,
-        serviceType: 'Periodic service',
-        bookingDate: serviceDate,
-        scheduledDate: serviceDate,
-        scheduledTimeSlot: 'Completed on Onboarding',
-        startedTime: `${serviceDate} 10:00`,
-        completedTime: `${serviceDate} 11:00`,
-        status: 'Completed',
-        issueDescription: currentServiceTaken.trim(),
-        workSummary: `Initial service: ${currentServiceTaken.trim()}`,
-        inletWaterTds: parseInt(inletTds, 10) || undefined,
-        outputWaterTds: Math.round((parseInt(inletTds, 10) || 800) * 0.1),
-        checklists: [],
-        partsUsed:
-          servicePartsCharge > 0
-            ? [
-                {
-                  id: `p-${Date.now()}`,
-                  name: currentServiceTaken.trim(),
-                  quantity: 1,
-                  unitPrice: servicePartsCharge,
-                  totalPrice: servicePartsCharge,
-                },
-              ]
-            : [],
-        labourCharge: serviceLabourCharge,
-        partsCharge: servicePartsCharge,
-        discount: 0,
-        tax: 0,
-        total: serviceLabourCharge + servicePartsCharge,
-        amountPaid: serviceLabourCharge + servicePartsCharge,
-        amountPending: 0,
-        paymentStatus: 'Paid',
-        paymentMethod: 'UPI',
-        beforePhotos: [],
-        afterPhotos: [],
-      });
-    }
+    // PERMANENT INSTALLATION & SERVICE RECORD IN SERVICE HISTORY
+    const totalAmount = (Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0);
+    const serviceNameFinal = currentServiceTaken.trim() || 'New Installation & Setup';
+
+    addServiceRecord({
+      businessId: business.id || 'biz-client-ro',
+      customerId: newCustomer.id,
+      purifierId: `pur-${newCustomer.id}`,
+      serviceType: serviceNameFinal.toLowerCase().includes('installation') ? 'Installation' : 'Installation',
+      bookingDate: serviceDate,
+      scheduledDate: serviceDate,
+      scheduledTimeSlot: 'Completed on Onboarding',
+      startedTime: `${serviceDate} 10:00`,
+      completedTime: `${serviceDate} 11:00`,
+      status: 'Completed',
+      issueDescription: `Installation: ${finalBrand} ${model}`,
+      workSummary: `Initial RO Installation & Setup (${finalBrand} ${model}). Installed on ${serviceDate}. ${serviceNameFinal !== 'New Installation & Setup' ? `[${serviceNameFinal}]` : ''}`,
+      inletWaterTds: parseInt(inletTds, 10) || undefined,
+      outputWaterTds: Math.round((parseInt(inletTds, 10) || 800) * 0.1),
+      checklists: [],
+      partsUsed:
+        sparePartName.trim() || servicePartsCharge > 0
+          ? [
+              {
+                id: `p-${Date.now()}`,
+                name: sparePartName.trim() || 'RO Spare Part / Filter',
+                quantity: 1,
+                unitPrice: Number(servicePartsCharge) || 0,
+                totalPrice: Number(servicePartsCharge) || 0,
+              },
+            ]
+          : [],
+      labourCharge: Number(serviceLabourCharge) || 0,
+      partsCharge: Number(servicePartsCharge) || 0,
+      discount: 0,
+      tax: 0,
+      total: totalAmount,
+      amountPaid: totalAmount,
+      amountPending: 0,
+      paymentStatus: 'Paid',
+      paymentMethod: 'UPI',
+      beforePhotos: [],
+      afterPhotos: [],
+    });
 
     onClose();
     // Reset Form
@@ -680,11 +683,37 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   </div>
                 </div>
 
-                {currentServiceTaken.trim() && (
-                  <div className="grid grid-cols-2 gap-3 pt-1 p-2 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                {/* DEDICATED CHARGES SECTION (SET BY OWNER) */}
+                <div className="p-3.5 bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-blue-950/20 dark:to-slate-900 rounded-xl border border-indigo-200/80 dark:border-indigo-900/60 space-y-3">
+                  <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/40 pb-2">
+                    <span className="font-bold text-xs text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-indigo-600" />
+                      <span>Service & Spare Part Charges</span>
+                    </span>
+                    <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 shadow-xs">
+                      Total: {formatIndianCurrency((Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0))}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* 1. Service Name */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Labour / Service Fee (₹)
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Service Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. New Installation & Setup, Periodic Service..."
+                        value={currentServiceTaken}
+                        onChange={(e) => setCurrentServiceTaken(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+                      />
+                    </div>
+
+                    {/* 2. Service Charges */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Service Charges / Labour (₹)
                       </label>
                       <input
                         type="number"
@@ -695,9 +724,38 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                         className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
                       />
                     </div>
+
+                    {/* 3. Spare Part Name */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Parts / Spares Cost (₹)
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Spare Part Name (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Sediment Filter, Spun Candle, RO Membrane..."
+                        value={sparePartName}
+                        onChange={(e) => setSparePartName(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
+                      />
+                      {/* Quick spare part suggestions */}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {['Sediment Filter', 'Carbon Filter', 'RO Membrane', 'Pre-Filter Candle', 'Booster Pump'].map((part) => (
+                          <button
+                            type="button"
+                            key={part}
+                            onClick={() => setSparePartName(part)}
+                            className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition"
+                          >
+                            + {part}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 4. Spare Part Charges */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Spare Part Charges (₹)
                       </label>
                       <input
                         type="number"
@@ -709,7 +767,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                       />
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* NEXT SERVICE INTERVAL: 3 MONTHS, 6 MONTHS, OR TYPE CUSTOM */}
