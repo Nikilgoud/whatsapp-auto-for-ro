@@ -140,8 +140,136 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         </div>
       </div>
 
-      {/* Customer Cards Grid / Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+      {/* Customer List: Desktop Table + Mobile Cards */}
+      {/* 1. Mobile Cards (< md screens) */}
+      <div className="md:hidden space-y-3">
+        {filteredCustomers.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-400 text-xs">
+            No customers found. Click <strong>+ Add Customer</strong> above to onboard your first customer.
+          </div>
+        ) : (
+          filteredCustomers.map((cust) => {
+            const customerPurifier = purifiers.find((p) => p.customerId === cust.id);
+            const hasUnitWarranty = customerPurifier?.warrantyExpiry && new Date(customerPurifier.warrantyExpiry) >= new Date();
+            const hasPartsWarranty = customerPurifier?.sparePartsWarrantyExpiry && new Date(customerPurifier.sparePartsWarrantyExpiry) >= new Date();
+
+            return (
+              <div
+                key={cust.id}
+                onClick={() => {
+                  setSelectedCustomer(cust);
+                  setModalInitialTab('overview');
+                }}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3 active:scale-[0.99] transition cursor-pointer"
+              >
+                {/* Header: Name, Avatar, Status */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold flex items-center justify-center shrink-0 text-xs">
+                      {cust.fullName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                        {cust.fullName}
+                      </p>
+                      <p className="text-xs font-mono text-slate-500">
+                        +91 {cust.mobileNumber}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                      cust.status === 'Overdue'
+                        ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        : cust.status === 'Service due'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                        : cust.status === 'AMC active'
+                        ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                    }`}
+                  >
+                    {cust.status}
+                  </span>
+                </div>
+
+                {/* Details Grid */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5 text-xs grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Purifier</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                      {customerPurifier ? `${customerPurifier.brand} ${customerPurifier.model}` : 'RO Purifier'}
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {hasUnitWarranty && (
+                        <span className="px-1 py-0.2 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          Warranty
+                        </span>
+                      )}
+                      {hasPartsWarranty && (
+                        <span className="px-1 py-0.2 rounded text-[9px] font-semibold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                          Parts War.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Service Due</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400 block">
+                      {customerPurifier?.nextServiceDueDate || 'N/A'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block truncate">
+                      📍 {cust.areaLocality}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons Row */}
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCustomer(cust);
+                      setModalInitialTab('services');
+                    }}
+                    className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Services</span>
+                  </button>
+
+                  <button
+                    onClick={(e) => handleOpenWhatsApp(e, cust)}
+                    className="p-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-xl transition"
+                    title="WhatsApp"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </button>
+
+                  <a
+                    href={`tel:${cust.mobileNumber}`}
+                    className="p-2 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-blue-600 hover:text-white rounded-xl transition"
+                    title="Call Customer"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+
+                  <button
+                    onClick={() => onBookService(cust, customerPurifier)}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition text-center shadow-xs"
+                  >
+                    Book Job
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 2. Desktop Table (>= md screens) */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-xs">
             <thead>

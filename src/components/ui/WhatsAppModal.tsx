@@ -92,17 +92,17 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[96vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-emerald-600 text-white">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-emerald-600 text-white shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-lg">
               <MessageSquare className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg">Send WhatsApp Message</h3>
-              <p className="text-xs text-emerald-100">
+              <h3 className="font-semibold text-base sm:text-lg">Send WhatsApp Message</h3>
+              <p className="text-xs text-emerald-100 truncate max-w-[200px] sm:max-w-none">
                 To: {customer.fullName} (+91 {customer.mobileNumber})
               </p>
             </div>
@@ -116,7 +116,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {!eligibility.eligible && (
             <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />

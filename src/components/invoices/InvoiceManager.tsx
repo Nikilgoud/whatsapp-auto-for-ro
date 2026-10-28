@@ -152,8 +152,107 @@ export const InvoiceManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Invoices Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+      {/* Invoices: Mobile Cards (< md screens) + Desktop Table (>= md screens) */}
+      {/* 1. Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {filteredInvoices.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-400 text-xs">
+            No invoices found matching your filter.
+          </div>
+        ) : (
+          filteredInvoices.map((inv) => {
+            const customer = customers.find((c) => c.id === inv.customerId);
+
+            return (
+              <div
+                key={inv.id}
+                onClick={() => setSelectedInvoice(inv)}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3 cursor-pointer active:scale-[0.99] transition"
+              >
+                {/* Header: Invoice #, Date, Status */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
+                      {inv.invoiceNumber}
+                    </span>
+                    <p className="font-bold text-slate-900 dark:text-white text-sm mt-0.5">
+                      {customer?.fullName || 'Customer'}
+                    </p>
+                    <p className="text-xs text-slate-500 font-mono">
+                      +91 {customer?.mobileNumber}
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        inv.paymentStatus === 'Paid'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          : inv.paymentStatus === 'Partially paid'
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                      }`}
+                    >
+                      {inv.paymentStatus === 'Paid' && <CheckCircle2 className="w-3 h-3" />}
+                      {inv.paymentStatus === 'Partially paid' && <Clock className="w-3 h-3" />}
+                      {inv.paymentStatus === 'Pending' && <AlertCircle className="w-3 h-3" />}
+                      <span>{inv.paymentStatus}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      {inv.invoiceDate}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amounts Breakdown Grid */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5 text-xs grid grid-cols-3 gap-1 text-center">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Total Bill</span>
+                    <span className="font-bold text-slate-900 dark:text-white text-xs">
+                      {formatIndianCurrency(inv.total)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Amount Paid</span>
+                    <span className="font-bold text-emerald-600 text-xs">
+                      {formatIndianCurrency(inv.amountPaid)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Balance</span>
+                    <span
+                      className={`font-bold text-xs ${
+                        inv.balanceDue > 0 ? 'text-rose-600' : 'text-slate-400'
+                      }`}
+                    >
+                      {inv.balanceDue > 0 ? formatIndianCurrency(inv.balanceDue) : '₹0'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer action button */}
+                <div className="pt-1 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80">
+                  <span className="text-[11px] text-slate-400">
+                    Tap to view receipt
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedInvoice(inv);
+                    }}
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-xs"
+                  >
+                    View & Print Invoice
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 2. Desktop Table */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-xs">
             <thead>

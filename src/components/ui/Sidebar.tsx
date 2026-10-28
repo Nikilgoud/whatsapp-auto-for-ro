@@ -18,6 +18,8 @@ import {
   RotateCcw,
   Sparkles,
   X,
+  Bot,
+  MessageSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +38,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     {
+      id: 'whatsapp-automation',
+      label: 'WhatsApp Automation',
+      icon: Bot,
+      badge: 'AUTO',
+      badgeColor: 'bg-emerald-500 text-white',
+    },
+    {
       id: 'renewals',
       label: 'Renewals Pipeline',
       icon: Repeat,
@@ -43,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       badgeColor: 'bg-rose-500 text-white',
     },
     { id: 'customers', label: 'Customers 360', icon: Users },
+
     { id: 'services', label: 'Services & Jobs', icon: Wrench },
     { id: 'calendar', label: 'Service Calendar', icon: Calendar },
     { id: 'amc', label: 'AMC Management', icon: ShieldCheck },

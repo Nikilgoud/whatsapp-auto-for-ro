@@ -381,7 +381,10 @@ export interface CommunicationLog {
   sentAt: string;
   responseReceived: boolean;
   responseText?: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
 }
+
 
 export interface InventoryItem {
   id: string;
@@ -446,3 +449,61 @@ export interface AutomationSequence {
   isActive: boolean;
   steps: AutomationStep[];
 }
+
+export interface PurifierProduct {
+  id: string;
+  businessId: string;
+  brand: string;
+  model: string;
+  purifierType: string;
+  capacityLph: number;
+  storageLiters: number;
+  stagesCount: number;
+  mrp: number;
+  sellingPrice: number;
+  warrantyMonths: number;
+  features: string[];
+  imageUrl?: string;
+  brochureUrl?: string;
+  inStock: boolean;
+  createdAt: string;
+}
+
+export interface AutoReminderStage {
+  daysBeforeOrAfter: number;
+  label: string;
+  templateKey: string;
+  enabled: boolean;
+}
+
+export interface AutoReminderConfig {
+  enabled: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  stages: AutoReminderStage[];
+  lastAutoRun?: string;
+  autoSentCount: number;
+}
+
+export interface BroadcastLog {
+  id: string;
+  messageText: string;
+  targetAudience: string;
+  recipientCount: number;
+  status: 'Queued' | 'Sending' | 'Completed' | 'Failed';
+  sentAt: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
+}
+
+
+export interface ChatMessage {
+  id: string;
+  sender: 'bot' | 'customer' | 'system';
+  text: string;
+  timestamp: string;
+  options?: { id: string; label: string; action: string }[];
+  productCard?: PurifierProduct;
+}
+

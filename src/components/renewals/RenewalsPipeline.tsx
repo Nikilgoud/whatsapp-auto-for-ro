@@ -96,8 +96,125 @@ export const RenewalsPipeline: React.FC<RenewalsPipelineProps> = ({
         </div>
       </div>
 
-      {/* RENEWALS LIST TABLE */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+      {/* Renewals Pipeline: Mobile Cards (< md screens) + Desktop Table (>= md screens) */}
+      {/* 1. Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {filteredRenewals.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center text-slate-400 text-xs">
+            No service renewals found matching your search or urgency filter.
+          </div>
+        ) : (
+          filteredRenewals.map((rnw) => {
+            const customer = customers.find((c) => c.id === rnw.customerId);
+            const purifier = purifiers.find((p) => p.id === rnw.purifierId);
+            if (!customer) return null;
+            const urgencyBadge = getUrgencyBadgeConfig(rnw.urgency);
+
+            return (
+              <div
+                key={rnw.id}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3"
+              >
+                {/* Header: Customer & Urgency */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <button
+                      onClick={() => onSelectCustomer(customer)}
+                      className="font-bold text-slate-900 dark:text-white text-sm hover:text-blue-600 text-left block truncate"
+                    >
+                      {customer.fullName}
+                    </button>
+                    <p className="text-xs text-slate-500 font-mono">
+                      +91 {customer.mobileNumber} • {customer.areaLocality}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ${urgencyBadge.bg}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${urgencyBadge.dot}`} />
+                    {rnw.daysRemaining <= 0
+                      ? `${Math.abs(rnw.daysRemaining)}d Overdue`
+                      : `${rnw.daysRemaining}d Left`}
+                  </span>
+                </div>
+
+                {/* Details Grid */}
+                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-2.5 text-xs grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Purifier & Service</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                      {purifier?.brand} {purifier?.model}
+                    </span>
+                    <span className="text-[11px] text-slate-500 block">
+                      {rnw.serviceType}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-semibold">Due Date & Est.</span>
+                    <span className="font-bold text-slate-900 dark:text-white block">
+                      {rnw.nextDueDate}
+                    </span>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block">
+                      {formatIndianCurrency(rnw.estimatedValue)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Follow-up Stage & Actions */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase">Stage:</span>
+                    <select
+                      value={rnw.followUpStage}
+                      onChange={(e) => updateRenewalStage(rnw.id, e.target.value as RenewalStage)}
+                      className="flex-1 sm:flex-initial text-xs font-semibold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 outline-none"
+                    >
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="Reminder sent">Reminder sent</option>
+                      <option value="Customer contacted">Customer contacted</option>
+                      <option value="Interested">Interested</option>
+                      <option value="Appointment scheduled">Appointment scheduled</option>
+                      <option value="Follow-up required">Follow-up required</option>
+                      <option value="Customer declined">Customer declined</option>
+                      <option value="No response">No response</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${customer.mobileNumber}`}
+                      className="p-2 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-blue-600 hover:text-white rounded-xl transition"
+                      title="Call"
+                    >
+                      <span className="text-xs font-bold">📞</span>
+                    </a>
+
+                    <button
+                      onClick={() => openWhatsApp(customer, purifier, rnw.daysRemaining <= 0)}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </button>
+
+                    <button
+                      onClick={() => onScheduleForRenewal(rnw)}
+                      className="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-xs text-center"
+                    >
+                      Book Job
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 2. Desktop Table */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead>

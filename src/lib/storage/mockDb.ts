@@ -12,8 +12,12 @@ import {
   CommunicationLog,
   User,
   AutomationSequence,
+  PurifierProduct,
+  AutoReminderConfig,
+  BroadcastLog,
 } from '@/types';
 import clientConfig from '@/config/businessProfile.json';
+
 
 export const INITIAL_BUSINESS: Business = {
   id: 'biz-client-ro',
@@ -124,3 +128,134 @@ export const INITIAL_INVOICES: Invoice[] = [];
 export const INITIAL_COMMUNICATIONS: CommunicationLog[] = [];
 export const INITIAL_AMC_SUBSCRIPTIONS: AMCSubscription[] = [];
 export const INITIAL_AUTOMATIONS: AutomationSequence[] = [];
+
+export const INITIAL_AUTO_REMINDER_CONFIG: AutoReminderConfig = {
+  enabled: true,
+  quietHoursEnabled: true,
+  quietHoursStart: '19:30',
+  quietHoursEnd: '09:00',
+  stages: [
+    { daysBeforeOrAfter: 15, label: '15 Days Before Due Date', templateKey: 'SERVICE_DUE', enabled: true },
+    { daysBeforeOrAfter: 3, label: '3 Days Before Due Date', templateKey: 'SERVICE_DUE', enabled: true },
+    { daysBeforeOrAfter: 0, label: 'On Due Date', templateKey: 'SERVICE_DUE', enabled: true },
+    { daysBeforeOrAfter: -7, label: '7 Days Overdue (Urgent)', templateKey: 'SERVICE_OVERDUE', enabled: true },
+    { daysBeforeOrAfter: -30, label: '30 Days Overdue (Critical)', templateKey: 'SERVICE_OVERDUE', enabled: true },
+  ],
+  autoSentCount: 0,
+};
+
+export const INITIAL_BROADCAST_LOGS: BroadcastLog[] = [];
+
+export const INITIAL_PURIFIER_PRODUCTS: PurifierProduct[] = [
+  {
+    id: 'prod-01',
+    businessId: 'biz-client-ro',
+    brand: 'Kent',
+    model: 'Grand Plus Alkaline RO+UV+UF',
+    purifierType: 'RO+UV+UF+Alkaline',
+    capacityLph: 20,
+    storageLiters: 9,
+    stagesCount: 8,
+    mrp: 21500,
+    sellingPrice: 16999,
+    warrantyMonths: 12,
+    features: [
+      'Zero Water Wastage Technology',
+      'Alkaline Mineralizer (pH 8.0 - 8.5)',
+      'UV LED Light in Storage Tank',
+      'High-grade TDS Controller'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=60',
+    inStock: true,
+    createdAt: '2026-08-01',
+  },
+  {
+    id: 'prod-02',
+    businessId: 'biz-client-ro',
+    brand: 'Aquaguard',
+    model: 'Aura RO+UV+Active Copper',
+    purifierType: 'RO+UV+Copper',
+    capacityLph: 15,
+    storageLiters: 7,
+    stagesCount: 8,
+    mrp: 19990,
+    sellingPrice: 15499,
+    warrantyMonths: 12,
+    features: [
+      'Active Copper + Zinc Booster Tech',
+      'Mineral Guard Technology',
+      'Smart LED Indicators',
+      'Compact Wall Mount Design'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1585842378054-ee2e52f94ba2?w=500&auto=format&fit=crop&q=60',
+    inStock: true,
+    createdAt: '2026-08-05',
+  },
+  {
+    id: 'prod-03',
+    businessId: 'biz-client-ro',
+    brand: 'Havells',
+    model: 'Max Alkaline RO+UV',
+    purifierType: 'RO+UV+Alkaline',
+    capacityLph: 15,
+    storageLiters: 8,
+    stagesCount: 7,
+    mrp: 20990,
+    sellingPrice: 15999,
+    warrantyMonths: 12,
+    features: [
+      'Futuristic corner mount design',
+      'Revitalizer cartridge restructure water molecules',
+      'iProtect purification monitoring',
+      'Removable tank for easy cleaning'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1617103996702-96ff29b1c467?w=500&auto=format&fit=crop&q=60',
+    inStock: true,
+    createdAt: '2026-08-10',
+  },
+  {
+    id: 'prod-04',
+    businessId: 'biz-client-ro',
+    brand: 'Livpure',
+    model: 'Glo Alkaline RO+UV+Mineralizer',
+    purifierType: 'RO+UV+Mineralizer',
+    capacityLph: 12,
+    storageLiters: 7,
+    stagesCount: 6,
+    mrp: 16500,
+    sellingPrice: 12499,
+    warrantyMonths: 12,
+    features: [
+      'Budget-friendly Indian household favorite',
+      'Advanced 6-stage purification',
+      'Mineral health enhancer',
+      'Fast flow tap'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=60',
+    inStock: true,
+    createdAt: '2026-08-15',
+  },
+  {
+    id: 'prod-05',
+    businessId: 'biz-client-ro',
+    brand: 'Aquapure',
+    model: 'Commercial 50 LPH RO Plant',
+    purifierType: 'Commercial RO',
+    capacityLph: 50,
+    storageLiters: 50,
+    stagesCount: 5,
+    mrp: 35000,
+    sellingPrice: 28500,
+    warrantyMonths: 12,
+    features: [
+      'High-capacity 50 Litres/Hour output',
+      'Heavy-duty Stainless Steel 304 skid frame',
+      'Dual 100 GPD high-rejection membranes',
+      'Ideal for restaurants, offices & schools'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1585842378054-ee2e52f94ba2?w=500&auto=format&fit=crop&q=60',
+    inStock: true,
+    createdAt: '2026-08-20',
+  },
+];
+

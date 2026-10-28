@@ -8,6 +8,7 @@ import {
   Users,
   Wrench,
   Menu,
+  Bot,
 } from 'lucide-react';
 
 interface BottomNavProps {
@@ -27,6 +28,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     {
+      id: 'whatsapp-automation',
+      label: 'WhatsApp',
+      icon: Bot,
+      badge: 'AUTO',
+    },
+    {
       id: 'renewals',
       label: 'Renewals',
       icon: Repeat,
@@ -35,6 +42,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
     { id: 'customers', label: 'Customers', icon: Users },
     { id: 'services', label: 'Services', icon: Wrench },
   ];
+
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 lg:hidden px-1 py-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around select-none">

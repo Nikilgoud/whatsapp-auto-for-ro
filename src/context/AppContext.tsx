@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, isLocalSandbox } from '@/lib/supabaseClient';
 import {
   Business,
   User,
@@ -21,6 +21,9 @@ import {
   RenewalStage,
   ServiceStatus,
   PaymentStatus,
+  PurifierProduct,
+  AutoReminderConfig,
+  BroadcastLog,
 } from '@/types';
 import {
   INITIAL_BUSINESS,
@@ -36,7 +39,20 @@ import {
   INITIAL_AMC_PLANS,
   INITIAL_AMC_SUBSCRIPTIONS,
   INITIAL_AUTOMATIONS,
+  INITIAL_PURIFIER_PRODUCTS,
+  INITIAL_AUTO_REMINDER_CONFIG,
+  INITIAL_BROADCAST_LOGS,
 } from '@/lib/storage/mockDb';
+import {
+  DEMO_BUSINESS,
+  DEMO_CUSTOMERS,
+  DEMO_PURIFIERS,
+  DEMO_RENEWALS,
+  DEMO_SERVICES,
+  DEMO_TECHNICIANS,
+  DEMO_INVOICES,
+  DEMO_PURIFIER_PRODUCTS,
+} from '@/lib/storage/demoData';
 import {
   calculateNextPurifierServiceDue,
   createRenewalFromService,
@@ -60,8 +76,11 @@ interface AppContextType {
   amcSubscriptions: AMCSubscription[];
   communications: CommunicationLog[];
   automations: AutomationSequence[];
+  purifierProducts: PurifierProduct[];
+  autoReminderConfig: AutoReminderConfig;
+  broadcastLogs: BroadcastLog[];
   searchTerm: string;
-  cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'needs_table';
+  cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'needs_table' | 'local_sandbox';
 
   // Actions
   setSearchTerm: (term: string) => void;
@@ -102,10 +121,18 @@ interface AppContextType {
   batchImportCustomers: (importedCustomers: Customer[], importedPurifiers: Purifier[]) => void;
   addAmcSubscription: (data: Omit<AMCSubscription, 'id' | 'subscriptionCode'>) => AMCSubscription;
   addAmcPlan: (plan: Omit<AMCPlan, 'id'>) => AMCPlan;
+  addPurifierProduct: (product: Omit<PurifierProduct, 'id' | 'createdAt'>) => PurifierProduct;
+  updatePurifierProduct: (id: string, updates: Partial<PurifierProduct>) => void;
+  deletePurifierProduct: (id: string) => void;
+  updateAutoReminderConfig: (updates: Partial<AutoReminderConfig>) => void;
+  runAutomatedRemindersNow: () => { sent: number; skipped: number; logs: string[] };
+  broadcastToAllCustomers: (manualText: string, targetFilter: string, media?: { url: string; type: 'image' | 'video' }) => Promise<{ sent: number; logs: string[] }>;
   resetDemoData: () => void;
+
   syncWithCloud: () => Promise<void>;
   lastCloudSyncTime: string | null;
 }
+
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -129,15 +156,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [amcSubscriptions, setAmcSubscriptions] = useState<AMCSubscription[]>(INITIAL_AMC_SUBSCRIPTIONS);
   const [communications, setCommunications] = useState<CommunicationLog[]>(INITIAL_COMMUNICATIONS);
   const [automations, setAutomations] = useState<AutomationSequence[]>(INITIAL_AUTOMATIONS);
+  const [purifierProducts, setPurifierProducts] = useState<PurifierProduct[]>(INITIAL_PURIFIER_PRODUCTS);
+  const [autoReminderConfig, setAutoReminderConfig] = useState<AutoReminderConfig>(INITIAL_AUTO_REMINDER_CONFIG);
+  const [broadcastLogs, setBroadcastLogs] = useState<BroadcastLog[]>(INITIAL_BROADCAST_LOGS);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'needs_table'>('syncing');
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<
+    'synced' | 'syncing' | 'offline' | 'needs_table' | 'local_sandbox'
+  >('local_sandbox');
+
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(null);
   const isRemoteUpdateRef = useRef(false);
   const hasLoadedFromCloudRef = useRef(false);
 
   // Fetch latest cloud data from Supabase
   const fetchCloudData = async () => {
+    // If running locally, completely isolate from client's Supabase
+    if (isLocalSandbox()) {
+      setCloudSyncStatus('local_sandbox');
+      hasLoadedFromCloudRef.current = true;
+      return;
+    }
+
     try {
       setCloudSyncStatus('syncing');
       const { data, error } = await supabase
@@ -157,89 +197,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (data && data.data) {
         const cloud = data.data;
-        const isStaleDemo = cloud.customers?.[0]?.id === 'cust-1' || cloud.invoices?.[0]?.id === 'inv-102';
-
-        if (!isStaleDemo) {
-          isRemoteUpdateRef.current = true;
-          if (Array.isArray(cloud.customers)) setCustomers(cloud.customers);
-          if (Array.isArray(cloud.purifiers)) setPurifiers(cloud.purifiers);
-          if (Array.isArray(cloud.renewals)) setRenewals(cloud.renewals);
-          if (Array.isArray(cloud.services)) setServices(cloud.services);
-          if (Array.isArray(cloud.technicians)) setTechnicians(cloud.technicians);
-          if (Array.isArray(cloud.inventory)) setInventory(cloud.inventory);
-          
-          let activeInvoices = Array.isArray(cloud.invoices) ? cloud.invoices : [];
-          if (Array.isArray(cloud.services)) {
-            const existingServiceIds = new Set(activeInvoices.map((inv: any) => inv.serviceRecordId));
-            const missingInvoices = cloud.services
-              .filter((srv: any) => srv.status === 'Completed' && !existingServiceIds.has(srv.id))
-              .map((srv: any, idx: number) => {
-                const partsSum = (srv.partsUsed || []).reduce((sum: number, p: any) => sum + (p.totalPrice || p.quantity * p.unitPrice || 0), 0);
-                const gross = srv.total ?? ((srv.labourCharge || 0) + partsSum - (srv.discount || 0));
-                const paid = srv.amountPaid ?? gross;
-                const bal = Math.max(0, gross - paid);
-                return {
-                  id: `inv-${Date.now()}-${idx}`,
-                  businessId: srv.businessId || 'biz-client-ro',
-                  invoiceNumber: `AQ-RO-${Math.floor(1000 + Math.random() * 9000)}`,
-                  customerId: srv.customerId,
-                  serviceRecordId: srv.id,
-                  invoiceDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
-                  dueDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
-                  items: [
-                    {
-                      id: 'i-labour',
-                      description: `${srv.serviceType || 'Service'} - Labour / Service Charges`,
-                      quantity: 1,
-                      unitPrice: srv.labourCharge || 0,
-                      amount: srv.labourCharge || 0,
-                    },
-                    ...(srv.partsUsed || []).map((p: any, pIdx: number) => ({
-                      id: `i-part-${pIdx}`,
-                      description: p.name,
-                      quantity: p.quantity || 1,
-                      unitPrice: p.unitPrice || 0,
-                      amount: p.totalPrice || (p.quantity || 1) * (p.unitPrice || 0),
-                    })),
-                  ],
-                  subtotal: (srv.labourCharge || 0) + partsSum,
-                  discount: srv.discount || 0,
-                  gstRate: 0,
-                  gstAmount: 0,
-                  total: gross,
-                  amountPaid: paid,
-                  balanceDue: bal,
-                  paymentStatus: bal === 0 ? 'Paid' : paid > 0 ? 'Partially paid' : 'Pending',
-                  notes: `Auto-generated for Service: ${srv.serviceCode}`,
-                };
-              });
-            if (missingInvoices.length > 0) {
-              activeInvoices = [...missingInvoices, ...activeInvoices];
-            }
+        isRemoteUpdateRef.current = true;
+        if (Array.isArray(cloud.customers)) setCustomers(cloud.customers);
+        if (Array.isArray(cloud.purifiers)) setPurifiers(cloud.purifiers);
+        if (Array.isArray(cloud.renewals)) setRenewals(cloud.renewals);
+        if (Array.isArray(cloud.services)) setServices(cloud.services);
+        if (Array.isArray(cloud.technicians)) setTechnicians(cloud.technicians);
+        if (Array.isArray(cloud.inventory)) setInventory(cloud.inventory);
+        
+        let activeInvoices = Array.isArray(cloud.invoices) ? cloud.invoices : [];
+        if (Array.isArray(cloud.services)) {
+          const existingServiceIds = new Set(activeInvoices.map((inv: any) => inv.serviceRecordId));
+          const missingInvoices = cloud.services
+            .filter((srv: any) => srv.status === 'Completed' && !existingServiceIds.has(srv.id))
+            .map((srv: any, idx: number) => {
+              const partsSum = (srv.partsUsed || []).reduce((sum: number, p: any) => sum + (p.totalPrice || p.quantity * p.unitPrice || 0), 0);
+              const gross = srv.total ?? ((srv.labourCharge || 0) + partsSum - (srv.discount || 0));
+              const paid = srv.amountPaid ?? gross;
+              const bal = Math.max(0, gross - paid);
+              return {
+                id: `inv-${Date.now()}-${idx}`,
+                businessId: srv.businessId || 'biz-client-ro',
+                invoiceNumber: `AQ-RO-${Math.floor(1000 + Math.random() * 9000)}`,
+                customerId: srv.customerId,
+                serviceRecordId: srv.id,
+                invoiceDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
+                dueDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
+                items: [
+                  {
+                    id: 'i-labour',
+                    description: `${srv.serviceType || 'Service'} - Labour / Service Charges`,
+                    quantity: 1,
+                    unitPrice: srv.labourCharge || 0,
+                    amount: srv.labourCharge || 0,
+                  },
+                  ...(srv.partsUsed || []).map((p: any, pIdx: number) => ({
+                    id: `i-part-${pIdx}`,
+                    description: p.name,
+                    quantity: p.quantity || 1,
+                    unitPrice: p.unitPrice || 0,
+                    amount: p.totalPrice || (p.quantity || 1) * (p.unitPrice || 0),
+                  })),
+                ],
+                subtotal: (srv.labourCharge || 0) + partsSum,
+                discount: srv.discount || 0,
+                gstRate: 0,
+                gstAmount: 0,
+                total: gross,
+                amountPaid: paid,
+                balanceDue: bal,
+                paymentStatus: bal === 0 ? 'Paid' : paid > 0 ? 'Partially paid' : 'Pending',
+                notes: `Auto-generated for Service: ${srv.serviceCode}`,
+              };
+            });
+          if (missingInvoices.length > 0) {
+            activeInvoices = [...missingInvoices, ...activeInvoices];
           }
-          setInvoices(activeInvoices);
-          if (Array.isArray(cloud.amcSubscriptions)) setAmcSubscriptions(cloud.amcSubscriptions);
-          if (cloud.business) setBusiness(cloud.business);
-        } else {
-          // Overwrite stale demo in Supabase with clean production data
-          await supabase.from('ro_app_state').upsert({
-            id: 'primary_business',
-            data: {
-              customers: [],
-              purifiers: [],
-              renewals: [],
-              services: [],
-              technicians: [],
-              inventory: [],
-              invoices: [],
-              amcSubscriptions: [],
-              business: INITIAL_BUSINESS,
-            },
-            updated_at: new Date().toISOString(),
-          });
         }
+        setInvoices(activeInvoices);
+        if (Array.isArray(cloud.amcSubscriptions)) setAmcSubscriptions(cloud.amcSubscriptions);
+        if (Array.isArray(cloud.purifierProducts)) setPurifierProducts(cloud.purifierProducts);
+        if (cloud.autoReminderConfig) setAutoReminderConfig(cloud.autoReminderConfig);
+        if (Array.isArray(cloud.broadcastLogs)) setBroadcastLogs(cloud.broadcastLogs);
+        if (cloud.business) setBusiness(cloud.business);
         hasLoadedFromCloudRef.current = true;
         setCloudSyncStatus('synced');
+
         setLastCloudSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } else {
         hasLoadedFromCloudRef.current = true;
@@ -253,11 +276,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Explicit function to trigger sync on demand
   const syncWithCloud = async () => {
+    if (isLocalSandbox()) {
+      setCloudSyncStatus('local_sandbox');
+      return;
+    }
     await fetchCloudData();
   };
 
   // 1. Initial Load: Load local storage instantly, then sync latest from Supabase
   useEffect(() => {
+    const isSandbox = isLocalSandbox();
+    if (isSandbox) {
+      try {
+        const saved = localStorage.getItem('ro_local_sandbox_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.customers && parsed.customers.length > 0) {
+            setCustomers(parsed.customers);
+            setPurifiers(parsed.purifiers || []);
+            setRenewals(parsed.renewals || []);
+            setServices(parsed.services || []);
+            setTechnicians(parsed.technicians || []);
+            setInventory(parsed.inventory || []);
+            setInvoices(parsed.invoices || []);
+            setAmcSubscriptions(parsed.amcSubscriptions || []);
+            setPurifierProducts(parsed.purifierProducts || DEMO_PURIFIER_PRODUCTS);
+            setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
+            setBroadcastLogs(parsed.broadcastLogs || []);
+            if (parsed.business) setBusiness(parsed.business);
+          } else {
+            setCustomers(DEMO_CUSTOMERS);
+            setPurifiers(DEMO_PURIFIERS);
+            setRenewals(DEMO_RENEWALS);
+            setServices(DEMO_SERVICES);
+            setTechnicians(DEMO_TECHNICIANS);
+            setInvoices(DEMO_INVOICES);
+            setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
+            setBusiness(DEMO_BUSINESS);
+          }
+        } else {
+          setCustomers(DEMO_CUSTOMERS);
+          setPurifiers(DEMO_PURIFIERS);
+          setRenewals(DEMO_RENEWALS);
+          setServices(DEMO_SERVICES);
+          setTechnicians(DEMO_TECHNICIANS);
+          setInvoices(DEMO_INVOICES);
+          setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
+          setBusiness(DEMO_BUSINESS);
+        }
+      } catch {
+        setCustomers(DEMO_CUSTOMERS);
+        setPurifiers(DEMO_PURIFIERS);
+        setRenewals(DEMO_RENEWALS);
+        setServices(DEMO_SERVICES);
+        setTechnicians(DEMO_TECHNICIANS);
+        setInvoices(DEMO_INVOICES);
+        setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
+        setBusiness(DEMO_BUSINESS);
+      }
+      setMounted(true);
+      hasLoadedFromCloudRef.current = true;
+      setCloudSyncStatus('local_sandbox');
+      return; // Do NOT attach Supabase realtime listener or fetch from cloud!
+    }
+
     try {
       localStorage.removeItem('ro_renewal_engine_v1_store');
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -272,6 +354,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setInventory(parsed.inventory || []);
           setInvoices(parsed.invoices || []);
           setAmcSubscriptions(parsed.amcSubscriptions || []);
+          setPurifierProducts(parsed.purifierProducts || INITIAL_PURIFIER_PRODUCTS);
+          setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
+          setBroadcastLogs(parsed.broadcastLogs || []);
           if (parsed.business) setBusiness(parsed.business);
         }
       }
@@ -314,6 +399,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (cloud.inventory) setInventory(cloud.inventory);
             if (cloud.invoices) setInvoices(cloud.invoices);
             if (cloud.amcSubscriptions) setAmcSubscriptions(cloud.amcSubscriptions);
+            if (cloud.purifierProducts) setPurifierProducts(cloud.purifierProducts);
+            if (cloud.autoReminderConfig) setAutoReminderConfig(cloud.autoReminderConfig);
+            if (cloud.broadcastLogs) setBroadcastLogs(cloud.broadcastLogs);
             if (cloud.business) setBusiness(cloud.business);
             hasLoadedFromCloudRef.current = true;
             setCloudSyncStatus('synced');
@@ -343,8 +431,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       inventory,
       invoices,
       amcSubscriptions,
+      purifierProducts,
+      autoReminderConfig,
+      broadcastLogs,
       business,
     };
+
+
+    // In local sandbox, save strictly to local storage and NEVER touch Supabase!
+    if (isLocalSandbox()) {
+      try {
+        localStorage.setItem('ro_local_sandbox_v1', JSON.stringify(payload));
+      } catch {}
+      setCloudSyncStatus('local_sandbox');
+      return; // NEVER touch Supabase!
+    }
 
     // Keep LocalStorage updated for offline caching
     try {
@@ -1063,7 +1164,217 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newRecord;
   };
 
+  const addPurifierProduct = (productData: Omit<PurifierProduct, 'id' | 'createdAt'>): PurifierProduct => {
+    const newProduct: PurifierProduct = {
+      ...productData,
+      id: `prod-${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setPurifierProducts((prev) => [newProduct, ...prev]);
+    return newProduct;
+  };
+
+  const updatePurifierProduct = (id: string, updates: Partial<PurifierProduct>) => {
+    setPurifierProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  const deletePurifierProduct = (id: string) => {
+    setPurifierProducts((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const updateAutoReminderConfig = (updates: Partial<AutoReminderConfig>) => {
+    setAutoReminderConfig((prev) => ({ ...prev, ...updates }));
+  };
+
+  const runAutomatedRemindersNow = () => {
+    let sentCount = 0;
+    let skippedCount = 0;
+    const logDetails: string[] = [];
+
+    // Check quiet hours
+    if (autoReminderConfig.quietHoursEnabled) {
+      const now = new Date();
+      const currentHoursMinutes = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const { quietHoursStart, quietHoursEnd } = autoReminderConfig;
+      const isQuietTime = quietHoursStart > quietHoursEnd
+        ? (currentHoursMinutes >= quietHoursStart || currentHoursMinutes < quietHoursEnd)
+        : (currentHoursMinutes >= quietHoursStart && currentHoursMinutes <= quietHoursEnd);
+
+      if (isQuietTime) {
+        return {
+          sent: 0,
+          skipped: renewals.length,
+          logs: [`Quiet hours active (${quietHoursStart} - ${quietHoursEnd}). Automated dispatch paused.`]
+        };
+      }
+    }
+
+    const newComms: CommunicationLog[] = [];
+    const updatedRenewals = renewals.map((rnw) => {
+      const cust = customers.find((c) => c.id === rnw.customerId);
+      const pur = purifiers.find((p) => p.id === rnw.purifierId);
+      if (!cust || cust.whatsappOptOut || rnw.status === 'SCHEDULED' || rnw.status === 'CONVERTED') {
+        skippedCount++;
+        return rnw;
+      }
+
+      // Check if eligible for any enabled stage with exact directional matching
+      const matchingStage = autoReminderConfig.stages.find((stg) => {
+        if (!stg.enabled) return false;
+        if (stg.daysBeforeOrAfter > 0) {
+          return rnw.daysRemaining <= stg.daysBeforeOrAfter && rnw.daysRemaining > 0;
+        } else if (stg.daysBeforeOrAfter === 0) {
+          return rnw.daysRemaining === 0;
+        } else {
+          // Overdue stages (e.g. -1, -7, -30)
+          return rnw.daysRemaining <= stg.daysBeforeOrAfter;
+        }
+      });
+
+      if (!matchingStage) {
+        skippedCount++;
+        return rnw;
+      }
+
+      // Prevent duplicate reminder within 48 hours
+      if (rnw.lastReminderDate) {
+        const lastSent = new Date(rnw.lastReminderDate).getTime();
+        const hoursAgo = (Date.now() - lastSent) / (1000 * 60 * 60);
+        if (hoursAgo < 48) {
+          skippedCount++;
+          return rnw;
+        }
+      }
+
+      sentCount++;
+      const messageBody = `Hi ${cust.fullName}, reminder from ${business.name}: Your ${pur?.brand || 'RO'} service is due on ${rnw.nextDueDate}. Reply YES to book a slot.`;
+      
+      newComms.push({
+        id: `comm-auto-${Date.now()}-${sentCount}`,
+        businessId: business.id,
+        customerId: cust.id,
+        channel: 'WhatsApp',
+        templateKey: matchingStage.templateKey,
+        language: selectedLanguage,
+        messageText: messageBody,
+        status: 'Sent',
+        sentAt: new Date().toISOString(),
+        responseReceived: false,
+      });
+
+      logDetails.push(`Auto-reminder sent to ${cust.fullName} (${cust.mobileNumber}) - ${matchingStage.label}`);
+
+      return {
+        ...rnw,
+        remindersSentCount: (rnw.remindersSentCount || 0) + 1,
+        lastReminderDate: new Date().toISOString(),
+        followUpStage: 'Reminder sent' as RenewalStage,
+      };
+    });
+
+    if (newComms.length > 0) {
+      setCommunications((prev) => [...newComms, ...prev]);
+      setRenewals(updatedRenewals);
+      setAutoReminderConfig((prev) => ({
+        ...prev,
+        lastAutoRun: new Date().toISOString(),
+        autoSentCount: (prev.autoSentCount || 0) + sentCount,
+      }));
+    }
+
+    return {
+      sent: sentCount,
+      skipped: skippedCount,
+      logs: logDetails.length > 0 ? logDetails : ['All customers are up-to-date or already reminded recently.'],
+    };
+  };
+
+  const broadcastToAllCustomers = async (manualText: string, targetFilter: string, media?: { url: string; type: 'image' | 'video' }) => {
+    let targets = [...customers];
+    if (targetFilter === 'overdue') {
+      const overdueCustIds = new Set(renewals.filter((r) => r.daysRemaining <= 0).map((r) => r.customerId));
+      targets = targets.filter((c) => overdueCustIds.has(c.id));
+    } else if (targetFilter === 'due_soon') {
+      const dueCustIds = new Set(renewals.filter((r) => r.daysRemaining > 0 && r.daysRemaining <= 15).map((r) => r.customerId));
+      targets = targets.filter((c) => dueCustIds.has(c.id));
+    } else if (targetFilter === 'amc_active') {
+      const amcCustIds = new Set(amcSubscriptions.filter((s) => s.status === 'Active').map((s) => s.customerId));
+      targets = targets.filter((c) => amcCustIds.has(c.id));
+    }
+
+    targets = targets.filter((c) => !c.whatsappOptOut && c.mobileNumber);
+
+    const newComms: CommunicationLog[] = [];
+    const logs: string[] = [];
+
+    targets.forEach((cust, index) => {
+      const pur = purifiers.find((p) => p.customerId === cust.id);
+      const rnw = renewals.find((r) => r.customerId === cust.id);
+
+      const personalized = manualText
+        .replace(/\{\{customerName\}\}/g, cust.fullName)
+        .replace(/\{\{businessName\}\}/g, business.name)
+        .replace(/\{\{phone\}\}/g, cust.mobileNumber)
+        .replace(/\{\{purifierBrand\}\}/g, pur?.brand || 'RO Purifier')
+        .replace(/\{\{dueDate\}\}/g, rnw?.nextDueDate || 'upcoming');
+
+      newComms.push({
+        id: `comm-bc-${Date.now()}-${index}`,
+        businessId: business.id,
+        customerId: cust.id,
+        channel: 'WhatsApp',
+        templateKey: 'CUSTOM_BROADCAST',
+        language: selectedLanguage,
+        messageText: personalized,
+        status: 'Sent',
+        sentAt: new Date().toISOString(),
+        responseReceived: false,
+        mediaUrl: media?.url,
+        mediaType: media?.type,
+      });
+
+      logs.push(`Message queued for ${cust.fullName} (+91 ${cust.mobileNumber})${media ? ` with attached ${media.type}` : ''}`);
+    });
+
+    const newBroadcastLog: BroadcastLog = {
+      id: `bc-log-${Date.now()}`,
+      messageText: manualText,
+      targetAudience: targetFilter,
+      recipientCount: targets.length,
+      status: 'Completed',
+      sentAt: new Date().toISOString(),
+      mediaUrl: media?.url,
+      mediaType: media?.type,
+    };
+
+    setCommunications((prev) => [...newComms, ...prev]);
+    setBroadcastLogs((prev) => [newBroadcastLog, ...prev]);
+
+    return {
+      sent: targets.length,
+      logs,
+    };
+  };
+
+
   const resetDemoData = () => {
+    if (isLocalSandbox()) {
+      try {
+        localStorage.removeItem('ro_local_sandbox_v1');
+      } catch {}
+      setBusiness(DEMO_BUSINESS);
+      setCustomers(DEMO_CUSTOMERS);
+      setPurifiers(DEMO_PURIFIERS);
+      setRenewals(DEMO_RENEWALS);
+      setServices(DEMO_SERVICES);
+      setTechnicians(DEMO_TECHNICIANS);
+      setInvoices(DEMO_INVOICES);
+      setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
+      setAutoReminderConfig(INITIAL_AUTO_REMINDER_CONFIG);
+      setBroadcastLogs([]);
+      return;
+    }
+
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {}
@@ -1081,6 +1392,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAmcSubscriptions(INITIAL_AMC_SUBSCRIPTIONS);
     setCommunications(INITIAL_COMMUNICATIONS);
     setAutomations(INITIAL_AUTOMATIONS);
+    setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
+    setAutoReminderConfig(INITIAL_AUTO_REMINDER_CONFIG);
+    setBroadcastLogs([]);
   };
 
   return (
@@ -1100,6 +1414,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amcSubscriptions,
         communications,
         automations,
+        purifierProducts,
+        autoReminderConfig,
+        broadcastLogs,
         searchTerm,
         cloudSyncStatus,
         setSearchTerm,
@@ -1125,6 +1442,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAmcSubscription,
         addAmcPlan,
         addServiceRecord,
+        addPurifierProduct,
+        updatePurifierProduct,
+        deletePurifierProduct,
+        updateAutoReminderConfig,
+        runAutomatedRemindersNow,
+        broadcastToAllCustomers,
         resetDemoData,
         syncWithCloud,
         lastCloudSyncTime,
@@ -1134,6 +1457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     </AppContext.Provider>
   );
 };
+
 
 export const useApp = () => {
   const context = useContext(AppContext);

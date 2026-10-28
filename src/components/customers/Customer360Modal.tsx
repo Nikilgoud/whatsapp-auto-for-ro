@@ -355,10 +355,10 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[96vh] sm:max-h-[90vh] overflow-hidden">
         {/* Modal Top Header */}
-        <div className="p-4 sm:p-6 bg-slate-900 text-white border-b border-slate-800 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+        <div className="p-3.5 sm:p-6 bg-slate-900 text-white border-b border-slate-800 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-base sm:text-lg shadow-lg shrink-0">
               {currentCustomer.fullName.slice(0, 2).toUpperCase()}
