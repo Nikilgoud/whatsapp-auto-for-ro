@@ -179,7 +179,8 @@ export function processImportRecords(
     const city = findRowValue(raw, ['city', 'town', 'district']);
     const state = findRowValue(raw, ['state']);
     const pincode = findRowValue(raw, ['pincode', 'pin', 'postalcode', 'zip']);
-    const brand = findRowValue(raw, ['purifierbrand', 'robrand', 'brand', 'company', 'make', 'machinebrand']);
+    const brandRaw = findRowValue(raw, ['purifierbrand', 'robrand', 'brand', 'company', 'make', 'machinebrand']);
+    const componentsRaw = findRowValue(raw, ['components', 'component', 'parts', 'filters', 'filter', 'items', 'workdone', 'description', 'servicecomponents']);
     const model = findRowValue(raw, ['purifiermodel', 'modelname', 'romodel', 'model', 'modelno']);
     const serialNumber = findRowValue(raw, ['serialnumber', 'serialno', 'slno', 'serial']);
     const purifierTypeRaw = findRowValue(raw, ['purifiertype', 'technology', 'tech', 'rotype', 'type']);
@@ -189,7 +190,21 @@ export function processImportRecords(
     const serviceChargeRaw = findRowValue(raw, ['servicecharge', 'servicecharges', 'servicecost', 'serviceamount', 'servicefee', 'serviceprice', 'labourcharge', 'charge', 'charges', 'amount', 'cost', 'fee', 'price']);
     const inletTdsRaw = findRowValue(raw, ['inlettds', 'rawwatertds', 'inputtds']);
     const outputTdsRaw = findRowValue(raw, ['outputtds', 'puretds', 'rotds', 'filteredtds']);
-    const notes = findRowValue(raw, ['notes', 'remarks', 'comment', 'instruction']);
+    const notesRaw = findRowValue(raw, ['notes', 'remarks', 'comment', 'instruction']);
+
+    // Intelligent brand detection from components text if dedicated brand column is omitted
+    let detectedBrand = brandRaw;
+    if (!detectedBrand && componentsRaw) {
+      const lower = componentsRaw.toLowerCase();
+      if (lower.includes('havells')) detectedBrand = 'Havells';
+      else if (lower.includes('livpure') || lower.includes('liv pure')) detectedBrand = 'Livpure';
+      else if (lower.includes('delite')) detectedBrand = 'Delite';
+      else if (lower.includes('kent')) detectedBrand = 'Kent';
+      else if (lower.includes('aquaguard')) detectedBrand = 'Aquaguard';
+      else if (lower.includes('pureit')) detectedBrand = 'Pureit';
+      else if (lower.includes('ao smith')) detectedBrand = 'AO Smith';
+      else if (lower.includes('blue star')) detectedBrand = 'Blue Star';
+    }
 
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -232,9 +247,10 @@ export function processImportRecords(
 
     const effectiveAddress = address || area || '';
     const effectiveArea = area || address || '';
-    const effectiveBrand = brand || 'RO Purifier';
+    const effectiveBrand = detectedBrand || 'RO Purifier';
     const effectiveModel = model || '';
     const effectiveType: PurifierType = (purifierTypeRaw as PurifierType) || 'RO+UV';
+    const effectiveNotes = notesRaw || (componentsRaw ? `Service/Components: ${componentsRaw}` : undefined);
 
     // Parse Dates strictly separated
     const parsedLastService = parseDateFlexible(lastServiceRaw);
@@ -293,7 +309,7 @@ export function processImportRecords(
       customerType: 'Residential',
       status: customerStatus,
       tags: ['Excel Imported'],
-      notes: notes || undefined,
+      notes: effectiveNotes,
       whatsappOptOut: false,
       languagePreference: 'te',
       totalSpend: serviceCharge,
@@ -326,6 +342,12 @@ export function processImportRecords(
     // 6. Construct Completed Service Record if service date provided in Excel
     let parsedService: ServiceRecord | undefined = undefined;
     if (lastServiceDate) {
+      const serviceSummary = componentsRaw
+        ? `${componentsRaw} (${serviceCharge === 0 ? 'Free service' : `Service charge ₹${serviceCharge}`})`
+        : serviceCharge === 0
+          ? 'General service completed (Free of charge)'
+          : `General service completed (Service charge ₹${serviceCharge})`;
+
       parsedService = {
         id: `srv-imp-${Date.now()}-${idx}`,
         businessId,
@@ -339,8 +361,8 @@ export function processImportRecords(
         startedTime: `${lastServiceDate} 10:00`,
         completedTime: `${lastServiceDate} 11:00`,
         status: 'Completed',
-        issueDescription: 'Routine water purifier maintenance service',
-        workSummary: serviceCharge === 0 ? 'General service completed (Free of charge)' : `General service completed (Service charge ₹${serviceCharge})`,
+        issueDescription: componentsRaw ? `Service/Work Done: ${componentsRaw}` : 'Routine water purifier maintenance service',
+        workSummary: serviceSummary,
         inletWaterTds: inletTds,
         outputWaterTds: outputTds,
         partsUsed: [], // Strictly empty: NO consumables or filter parts
