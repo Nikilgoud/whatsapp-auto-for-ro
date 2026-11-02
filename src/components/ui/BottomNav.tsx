@@ -9,6 +9,8 @@ import {
   Wrench,
   Menu,
   Bot,
+  MessageSquare,
+  ShoppingCart,
 } from 'lucide-react';
 
 interface BottomNavProps {
@@ -22,16 +24,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   setActiveTab,
   onOpenSidebar,
 }) => {
-  const { renewals } = useApp();
+  const { renewals, unreadWhatsAppCount } = useApp();
   const overdueCount = renewals.filter((r) => r.daysRemaining <= 0 && r.status === 'PENDING').length;
 
   const items = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     {
-      id: 'whatsapp-automation',
-      label: 'WhatsApp',
-      icon: Bot,
-      badge: 'AUTO',
+      id: 'whatsapp-inbox',
+      label: 'Inbox',
+      icon: MessageSquare,
+      badge: unreadWhatsAppCount > 0 ? unreadWhatsAppCount : undefined,
     },
     {
       id: 'renewals',
@@ -40,6 +42,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       badge: overdueCount > 0 ? overdueCount : undefined,
     },
     { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'sales-hub', label: 'Sales', icon: ShoppingCart },
     { id: 'services', label: 'Services', icon: Wrench },
   ];
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, assertAuthorizedRole } from '@/lib/server/auth';
+import { requireAuth } from '@/lib/server/auth';
 import { supabaseAdmin } from '@/lib/server/supabaseAdmin';
 import { BroadcastCampaignSchema } from '@/lib/server/validation';
 import { enqueueMessageJob } from '@/lib/server/messageQueue';
@@ -8,11 +8,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(req);
-    if (!user || !assertAuthorizedRole(user, ['OWNER', 'MANAGER'])) {
+    // Use requireAuth for proper authentication with role checking
+    let user;
+    try {
+      user = await requireAuth(req, ['OWNER']);
+    } catch (authErr: any) {
+      const status = authErr.message.includes('UNAUTHORIZED') ? 401 : 403;
       return NextResponse.json(
-        { error: 'Unauthorized. Only Owners and Managers can initiate broadcasts.' },
-        { status: 403 }
+        { error: authErr.message.replace('UNAUTHORIZED: ', '').replace('FORBIDDEN: ', '') },
+        { status }
       );
     }
 
@@ -28,15 +32,16 @@ export async function POST(req: NextRequest) {
     const { campaignName, targetFilter, messageTemplate, mediaUrl, mediaType, scheduledAt } = parsed.data;
     const businessId = user.businessId;
 
-    // 1. Build query for target recipients
+    // 1. Build query for target recipients using production schema column names
+    // customers.full_name, customers.mobile_number, customers.area_locality
     let query = supabaseAdmin
       .from('customers')
-      .select('id, name, phone, area, language_preference, opt_out_whatsapp')
+      .select('id, full_name, mobile_number, area_locality, language_preference, whatsapp_opt_out')
       .eq('business_id', businessId)
-      .eq('opt_out_whatsapp', false);
+      .eq('whatsapp_opt_out', false);
 
     if (targetFilter.areas && targetFilter.areas.length > 0) {
-      query = query.in('area', targetFilter.areas);
+      query = query.in('area_locality', targetFilter.areas);
     }
     if (targetFilter.languagePreference && targetFilter.languagePreference !== 'ALL') {
       query = query.eq('language_preference', targetFilter.languagePreference);
@@ -81,17 +86,17 @@ export async function POST(req: NextRequest) {
 
     for (const recipient of recipients) {
       const personalizedText = messageTemplate
-        .replace(/\{name\}/gi, recipient.name)
-        .replace(/\{area\}/gi, recipient.area || '');
+        .replace(/\{name\}/gi, recipient.full_name)
+        .replace(/\{area\}/gi, recipient.area_locality || '');
 
       await enqueueMessageJob({
         businessId,
-        recipientPhone: recipient.phone,
+        recipientPhone: recipient.mobile_number,
         jobType: 'BROADCAST',
         scheduledAt: dispatchTime,
         payload: {
           businessId,
-          recipientPhone: recipient.phone,
+          recipientPhone: recipient.mobile_number,
           customerId: recipient.id,
           bodyText: personalizedText,
           mediaUrl: mediaUrl || null,

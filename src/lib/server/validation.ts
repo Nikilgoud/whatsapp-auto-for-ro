@@ -56,7 +56,6 @@ export const ServiceRecordSchema = z.object({
   tdsReadingBefore: z.number().optional().nullable(),
   tdsReadingAfter: z.number().optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
-  customerRating: z.number().min(1).max(5).optional().nullable(),
   customerFeedback: z.string().max(500).optional().nullable(),
 });
 
@@ -100,14 +99,22 @@ export const BroadcastCampaignSchema = z.object({
 });
 
 export const WhatsAppMessageSendSchema = z.object({
-  recipientPhone: z.string().min(10).max(15),
+  recipientPhone: z.string().min(10).max(20),
   templateName: z.string().optional(),
   languageCode: z.string().default('te'),
   components: z.array(z.any()).optional(),
   bodyText: z.string().optional(),
-  mediaUrl: z.string().url().optional().nullable(),
-  mediaType: z.enum(['image', 'video', 'document']).optional().nullable(),
-  customerId: z.string().uuid().optional().nullable(),
-  renewalId: z.string().uuid().optional().nullable(),
-  serviceId: z.string().uuid().optional().nullable(),
+  messageText: z.string().optional(),
+  mediaUrl: z.string().optional().nullable(),
+  mediaType: z.enum(['image', 'video', 'document', 'audio']).optional().nullable(),
+  mediaCaption: z.string().optional().nullable(),
+  customerId: z.string().optional().nullable(),
+  customerName: z.string().optional(),
+  area: z.string().optional(),
+  purifierBrand: z.string().optional(),
+  purifierModel: z.string().optional(),
+  nextDueDate: z.string().optional(),
+  outputTds: z.number().optional().nullable(),
+  renewalId: z.string().optional().nullable(),
+  serviceId: z.string().optional().nullable(),
 });

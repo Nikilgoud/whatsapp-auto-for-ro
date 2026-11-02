@@ -61,6 +61,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
       ownerName: business.ownerName || 'K. Venkat Rao',
       businessAddress: `${business.address}, ${business.city}`,
       businessPhone: business.phone,
+      businessWebsite: business.website,
       technicianName: technicianName || 'Our Technician',
       scheduledDate,
       scheduledTime,
@@ -68,7 +69,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
     });
 
     setMessageBody(interpolated);
-  }, [templateKey, lang, customer, purifier, dueDate, amount, scheduledDate, scheduledTime, technicianName, business.name, business.ownerName, business.address, business.city, business.phone]);
+  }, [templateKey, lang, customer, purifier, dueDate, amount, scheduledDate, scheduledTime, technicianName, business.name, business.ownerName, business.address, business.city, business.phone, business.website]);
 
   if (!isOpen) return null;
 

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   Search,
   Plus,
@@ -12,14 +13,15 @@ import {
   AlertCircle,
   ShieldCheck,
   UserCheck,
+  LogOut,
 } from 'lucide-react';
 import { AuthModal } from '@/components/auth/AuthModal';
+import { LogoutConfirmModal } from '@/components/auth/LogoutConfirmModal';
 
 interface TopNavProps {
   onOpenAddCustomer: () => void;
   onOpenScheduleService: () => void;
   onOpenSearch: () => void;
-  onOpenVideoTour?: () => void;
   onToggleSidebar?: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -29,18 +31,20 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenAddCustomer,
   onOpenScheduleService,
   onOpenSearch,
-  onOpenVideoTour,
   onToggleSidebar,
   activeTab,
   setActiveTab,
 }) => {
   const [isAuthOpen, setIsAuthOpen] = React.useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
+  const { logout } = useAuth();
   const {
     business,
     currentUser,
     renewals,
     inventory,
     cloudSyncStatus,
+    logoutOwner,
   } = useApp();
 
   const overdueCount = renewals.filter((r) => r.daysRemaining <= 0 && r.status === 'PENDING').length;
@@ -75,21 +79,6 @@ export const TopNav: React.FC<TopNavProps> = ({
 
       {/* Right Controls: Quick Actions */}
       <div className="flex items-center gap-2 sm:gap-2.5">
-        {/* Video Tour Button */}
-        {onOpenVideoTour && (
-          <button
-            onClick={onOpenVideoTour}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-xs transition"
-            title="Watch Telugu Feature Video"
-          >
-            <span className="text-sm">🎬</span>
-            <span className="hidden sm:inline">వీడియో టూర్</span>
-            <span className="text-[10px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-mono">
-              తెలుగు
-            </span>
-          </button>
-        )}
-
         {/* Live Cloud Sync Status */}
         <div
           className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-[11px] font-semibold rounded-xl border transition ${
@@ -154,16 +143,37 @@ export const TopNav: React.FC<TopNavProps> = ({
         <button
           onClick={() => setIsAuthOpen(true)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 transition"
-          title={`Role: ${currentUser?.role || 'OWNER'} | Manage Account`}
+          title="Business Owner | Manage Account"
         >
           <UserCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
           <span className="hidden md:inline font-bold text-[11px] text-blue-600 dark:text-blue-400">
-            {currentUser?.role || 'OWNER'}
+            Owner
           </span>
+        </button>
+
+        {/* Dedicated Logout Button */}
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 rounded-xl border border-rose-200 dark:border-rose-800 transition"
+          title="Log out of RO Renewal Engine"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Logout</span>
         </button>
       </div>
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      {showLogoutConfirm && (
+        <LogoutConfirmModal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={async () => {
+            logoutOwner();
+            await logout();
+            setShowLogoutConfirm(false);
+          }}
+        />
+      )}
     </header>
   );
 };

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { AMCPlan, AMCSubscription, Customer, Purifier } from '@/types';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import { Customer360Modal } from '@/components/customers/Customer360Modal';
 import {
@@ -129,7 +129,7 @@ export const AMCManager: React.FC = () => {
     if (!newPlanName.trim()) return;
 
     addAmcPlan({
-      businessId: business.id || 'biz-aquapure-hyd',
+      businessId: business.id,
       name: newPlanName.trim(),
       description: newPlanDescription.trim(),
       durationMonths: 12,
@@ -159,7 +159,7 @@ export const AMCManager: React.FC = () => {
     // If custom plan option was typed on-the-fly, create and register the custom plan!
     if (selectedPlanId === 'CUSTOM_TYPED') {
       const createdPlan = addAmcPlan({
-        businessId: business.id || 'biz-aquapure-hyd',
+        businessId: business.id,
         name: customTypedPlanName.trim() || 'Custom AMC Plan',
         description: `Custom maintenance plan tailored with ${customVisits} annual visits and on-demand spare support.`,
         durationMonths: 12,
@@ -174,7 +174,7 @@ export const AMCManager: React.FC = () => {
     }
 
     addAmcSubscription({
-      businessId: business.id || 'biz-aquapure-hyd',
+      businessId: business.id,
       customerId: selectedCustomerId,
       purifierId: targetPurifierId || `pur-temp-${Date.now()}`,
       amcPlanId: finalPlanId,
@@ -363,8 +363,8 @@ export const AMCManager: React.FC = () => {
                         </td>
 
                         <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">
-                          <span className="font-medium">{sub.startDate}</span>
-                          <span className="text-slate-400 block text-[10px]">to <strong className="text-rose-600 dark:text-rose-400">{sub.endDate}</strong></span>
+                          <span className="font-medium">{formatDateDDMMYYYY(sub.startDate)}</span>
+                          <span className="text-slate-400 block text-[10px]">to <strong className="text-rose-600 dark:text-rose-400">{formatDateDDMMYYYY(sub.endDate)}</strong></span>
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -687,7 +687,7 @@ export const AMCManager: React.FC = () => {
                   >
                     {customerPurifiers.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.brand} {p.model} ({p.purifierCode}) — Installed: {p.installationDate}
+                        {p.brand} {p.model} ({p.purifierCode}) — Installed: {p.installationDate ? formatDateDDMMYYYY(p.installationDate) : 'N/A'}
                       </option>
                     ))}
                   </select>

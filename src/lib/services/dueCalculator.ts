@@ -69,7 +69,7 @@ export function calculateNextPurifierServiceDue(
   lastServiceDateStr?: string
 ): string {
   const baseDateStr = lastServiceDateStr || purifier.lastServiceDate || purifier.installationDate;
-  const baseDate = parseISO(baseDateStr);
+  const baseDate = baseDateStr ? parseISO(baseDateStr) : new Date();
   
   // Default general interval
   const generalDue = addMonths(baseDate, settings.defaultServiceIntervalMonths || 3);

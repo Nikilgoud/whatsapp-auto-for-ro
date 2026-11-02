@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { supabaseAdmin } from './supabaseAdmin';
 
-export type UserRole = 'OWNER' | 'MANAGER' | 'TECHNICIAN';
+export type UserRole = 'OWNER';
 
 export interface AuthenticatedUser {
   userId: string;
@@ -37,15 +37,15 @@ export async function getAuthenticatedUser(
     }
   }
 
-  // If in sandbox mode or test mode and no token, allow a fallback for local development preview
+  // 3. If still no token, check for development/sandbox fallback
   if (!token) {
     if (process.env.NEXT_PUBLIC_LOCAL_SANDBOX === 'true' || process.env.NODE_ENV === 'development') {
       return {
         userId: 'dev-owner-id',
-        email: 'owner@nikiaquapure.local',
+        email: 'owner@local.dev',
         role: 'OWNER',
         businessId: '00000000-0000-0000-0000-000000000001',
-        fullName: 'Niki Aquapure Admin',
+        fullName: 'Local Dev Owner',
       };
     }
     return null;
@@ -77,7 +77,7 @@ export async function getAuthenticatedUser(
     return {
       userId: user.id,
       email: user.email || '',
-      role: (profile.role as UserRole) || 'TECHNICIAN',
+      role: 'OWNER',
       businessId: profile.business_id,
       fullName: profile.full_name,
       phone: profile.phone,
@@ -89,12 +89,55 @@ export async function getAuthenticatedUser(
 }
 
 /**
- * Enforces allowed roles. Throws or returns boolean.
+ * Requires authentication. All valid authenticated users have full OWNER privileges.
+ * Returns the authenticated user or throws an error response.
+ */
+export async function requireAuth(
+  req: NextRequest,
+  allowedRoles: UserRole[] = ['OWNER']
+): Promise<AuthenticatedUser> {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    throw new Error('UNAUTHORIZED: Valid authentication required');
+  }
+  return user;
+}
+
+/**
+ * Checks authorization. Returns true if user is authenticated.
  */
 export function assertAuthorizedRole(
   user: AuthenticatedUser | null,
-  allowedRoles: UserRole[]
+  allowedRoles: UserRole[] = ['OWNER']
 ): boolean {
   if (!user) return false;
-  return allowedRoles.includes(user.role);
+  return true;
+}
+
+/**
+ * Middleware wrapper for Cron routes to validate CRON_SECRET
+ */
+export function withCronAuth(
+  handler: (req: NextRequest) => Promise<import('next/server').NextResponse>
+) {
+  return async (req: NextRequest): Promise<import('next/server').NextResponse> => {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers.get('authorization');
+    const urlSecret = req.nextUrl.searchParams.get('secret');
+
+    if (cronSecret) {
+      const isValidBearer = authHeader === `Bearer ${cronSecret}`;
+      const isValidParam = urlSecret === cronSecret;
+
+      if (!isValidBearer && !isValidParam) {
+        const { NextResponse } = await import('next/server');
+        return NextResponse.json(
+          { error: 'Unauthorized. Invalid or missing CRON_SECRET.' },
+          { status: 401 }
+        );
+      }
+    }
+
+    return handler(req);
+  };
 }

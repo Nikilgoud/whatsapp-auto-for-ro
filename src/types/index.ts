@@ -1,4 +1,4 @@
-export type UserRole = 'OWNER' | 'MANAGER';
+export type UserRole = 'OWNER';
 
 export interface User {
   id: string;
@@ -52,11 +52,14 @@ export interface Business {
   phone: string;
   whatsappNumber: string;
   email: string;
+  website?: string;
+  paymentQrCodeUrl?: string;
   address: string;
   city: string;
   state: string;
   pincode: string;
   logoUrl?: string;
+  passcode?: string;
   settings: BusinessSettings;
 }
 
@@ -103,6 +106,7 @@ export interface Customer {
   tags: string[];
   notes?: string;
   whatsappOptOut: boolean;
+  languagePreference?: 'te' | 'en' | 'bilingual' | 'hi';
   totalSpend: number;
   pendingBalance: number;
   createdAt: string;
@@ -115,8 +119,15 @@ export type PurifierType =
   | 'UF'
   | 'RO+UV'
   | 'RO+UV+UF'
-  | 'RO+Alkaline'
-  | 'Commercial RO';
+  | 'RO+UV+UF+Alkaline'
+  | 'RO+UV+Copper'
+  | 'RO+UV+UF+TDS Controller'
+  | 'Ro + Copper + Zink'
+  | 'Ro + Alkaline'
+  | 'Ro + Copper + Alkaline'
+  | 'Commercial RO (25/50 LPH)'
+  | 'Commercial RO'
+  | (string & {});
 
 export type ComponentType =
   | 'Sediment filter'
@@ -156,7 +167,7 @@ export interface Purifier {
   purifierType: PurifierType;
   capacityLph: number;
   serialNumber?: string;
-  installationDate: string;
+  installationDate?: string;
   purchaseDate?: string;
   warrantyStart?: string;
   warrantyExpiry?: string;
@@ -250,7 +261,8 @@ export interface ServiceRecord {
   amountPending: number;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethod;
-  customerRating?: number;
+  customerFeedback?: string;
+  durationMinutes?: number;
   customerSignature?: string;
   beforePhotos: string[];
   afterPhotos: string[];
@@ -272,8 +284,10 @@ export interface Technician {
   completedJobs: number;
   pendingJobs: number;
   revenueGenerated: number;
-  rating: number;
   currentLocation?: string;
+  firstTimeFixRate?: number;
+  waterQualityScore?: number;
+  averageTurnaroundMins?: number;
 }
 
 export interface AMCPlan {
@@ -417,6 +431,14 @@ export interface Invoice {
   invoiceNumber: string;
   customerId: string;
   serviceRecordId?: string;
+  purifierId?: string;
+  purifierProductId?: string;
+  invoiceType?: 'SERVICE' | 'SALES' | 'AMC';
+  machineSerialNo?: string;
+  paymentMethod?: PaymentMethod;
+  deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
+  installationDate?: string;
+  technicianId?: string;
   invoiceDate: string;
   dueDate: string;
   items: InvoiceItem[];
@@ -464,8 +486,14 @@ export interface PurifierProduct {
   warrantyMonths: number;
   features: string[];
   imageUrl?: string;
+  images?: string[];
   brochureUrl?: string;
   inStock: boolean;
+  stockStatus?: 'In Stock' | 'Low Stock' | 'Out of Stock';
+  maxInputTds?: number;
+  freeServicesCount?: number;
+  dealerMargin?: number;
+  description?: string;
   createdAt: string;
 }
 
@@ -505,5 +533,43 @@ export interface ChatMessage {
   timestamp: string;
   options?: { id: string; label: string; action: string }[];
   productCard?: PurifierProduct;
+}
+
+export interface LiveWhatsAppMessage {
+  id: string;
+  businessId: string;
+  customerId?: string | null;
+  phoneNumber: string;
+  direction: 'INBOUND' | 'OUTBOUND';
+  messageType: 'TEXT' | 'TEMPLATE' | 'MEDIA';
+  templateName?: string | null;
+  content: string;
+  mediaUrl?: string | null;
+  mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
+  providerMessageId?: string | null;
+  status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
+  errorMessage?: string | null;
+  sentAt?: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface LiveWhatsAppConversation {
+  customerId: string | null;
+  customerName: string;
+  phoneNumber: string;
+  area?: string;
+  purifierBrand?: string;
+  purifierModel?: string;
+  nextDueDate?: string;
+  outputTds?: number | null;
+  unreadCount: number;
+  lastMessage: string;
+  lastMessageDirection: 'INBOUND' | 'OUTBOUND';
+  lastMessageStatus: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
+  lastMessageTime: string;
+  mediaUrl?: string | null;
+  mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
 }
 

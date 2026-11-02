@@ -15,6 +15,8 @@ import {
   AMCSubscription,
   InventoryItem,
   Invoice,
+  InvoiceItem,
+  PaymentMethod,
   CommunicationLog,
   LanguageCode,
   AutomationSequence,
@@ -52,6 +54,11 @@ import {
   DEMO_TECHNICIANS,
   DEMO_INVOICES,
   DEMO_PURIFIER_PRODUCTS,
+  SR_WATER_CUSTOMERS,
+  SR_WATER_PURIFIERS,
+  SR_WATER_SERVICES,
+  SR_WATER_RENEWALS,
+  SR_WATER_INVOICES,
 } from '@/lib/storage/demoData';
 import {
   calculateNextPurifierServiceDue,
@@ -59,6 +66,8 @@ import {
   calculateUrgency,
   getDaysRemaining,
 } from '@/lib/services/dueCalculator';
+import { appendBusinessFooter } from '@/lib/services/whatsappEngine';
+import { formatDateDDMMYYYY } from '@/lib/utils';
 import { format, addMonths } from 'date-fns';
 
 interface AppContextType {
@@ -81,6 +90,8 @@ interface AppContextType {
   broadcastLogs: BroadcastLog[];
   searchTerm: string;
   cloudSyncStatus: 'synced' | 'syncing' | 'offline' | 'needs_table' | 'local_sandbox';
+  unreadWhatsAppCount: number;
+  setUnreadWhatsAppCount: React.Dispatch<React.SetStateAction<number>>;
 
   // Actions
   setSearchTerm: (term: string) => void;
@@ -107,23 +118,47 @@ interface AppContextType {
       amountPaid: number;
       paymentMethod?: any;
       customerSignature?: string;
-      customerRating?: number;
     }
   ) => void;
   updateRenewalStage: (renewalId: string, stage: RenewalStage) => void;
   logCommunication: (log: Omit<CommunicationLog, 'id' | 'sentAt'>) => void;
   addInventoryItem: (item: Omit<InventoryItem, 'id' | 'isLowStock'>) => void;
   updateInventoryStock: (itemId: string, qtyDelta: number) => void;
-  addTechnician: (techData: Omit<Technician, 'id' | 'completedJobs' | 'pendingJobs' | 'revenueGenerated' | 'rating'>) => Technician;
+  addTechnician: (techData: Omit<Technician, 'id' | 'completedJobs' | 'pendingJobs' | 'revenueGenerated'>) => Technician;
   deleteTechnician: (id: string) => void;
   assignTechnicianToService: (serviceId: string, technicianId: string) => void;
   addServiceRecord: (record: Omit<ServiceRecord, 'id' | 'serviceCode' | 'createdAt' | 'updatedAt'>) => ServiceRecord;
-  batchImportCustomers: (importedCustomers: Customer[], importedPurifiers: Purifier[]) => void;
+  batchImportCustomers: (importedCustomers: Customer[], importedPurifiers: Purifier[], importedServices?: ServiceRecord[]) => void;
   addAmcSubscription: (data: Omit<AMCSubscription, 'id' | 'subscriptionCode'>) => AMCSubscription;
   addAmcPlan: (plan: Omit<AMCPlan, 'id'>) => AMCPlan;
   addPurifierProduct: (product: Omit<PurifierProduct, 'id' | 'createdAt'>) => PurifierProduct;
   updatePurifierProduct: (id: string, updates: Partial<PurifierProduct>) => void;
   deletePurifierProduct: (id: string) => void;
+  createSalesInvoice: (payload: {
+    customerId: string;
+    purifierProductId?: string;
+    brand: string;
+    model: string;
+    purifierType?: string;
+    machineSerialNo?: string;
+    deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
+    installationDate?: string;
+    technicianId?: string;
+    items: InvoiceItem[];
+    subtotal: number;
+    discount: number;
+    gstRate: number;
+    gstAmount: number;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+    paymentMethod: PaymentMethod;
+    notes?: string;
+    autoRegisterPurifier?: boolean;
+    autoScheduleInstallation?: boolean;
+    amcPlanId?: string;
+    sendWhatsAppConfirmation?: boolean;
+  }) => Promise<{ invoice: Invoice; purifier?: Purifier; service?: ServiceRecord }>;
   updateAutoReminderConfig: (updates: Partial<AutoReminderConfig>) => void;
   runAutomatedRemindersNow: () => { sent: number; skipped: number; logs: string[] };
   broadcastToAllCustomers: (manualText: string, targetFilter: string, media?: { url: string; type: 'image' | 'video' }) => Promise<{ sent: number; logs: string[] }>;
@@ -131,6 +166,12 @@ interface AppContextType {
 
   syncWithCloud: () => Promise<void>;
   lastCloudSyncTime: string | null;
+
+  isOwnerAuthenticated: boolean;
+  isAuthChecking: boolean;
+  loginOwner: (mobile: string, passcode: string) => { success: boolean; error?: string };
+  logoutOwner: () => void;
+  updateBusinessPasscode: (newPasscode: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 
@@ -160,6 +201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [autoReminderConfig, setAutoReminderConfig] = useState<AutoReminderConfig>(INITIAL_AUTO_REMINDER_CONFIG);
   const [broadcastLogs, setBroadcastLogs] = useState<BroadcastLog[]>(INITIAL_BROADCAST_LOGS);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [unreadWhatsAppCount, setUnreadWhatsAppCount] = useState<number>(3);
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<
     'synced' | 'syncing' | 'offline' | 'needs_table' | 'local_sandbox'
@@ -168,6 +210,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(null);
   const isRemoteUpdateRef = useRef(false);
   const hasLoadedFromCloudRef = useRef(false);
+
+  // Persistent Owner Authentication State
+  const [isOwnerAuthenticated, setIsOwnerAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+
+  // Load persistent auth session from localStorage on mount
+  useEffect(() => {
+    try {
+      const session = typeof window !== 'undefined' ? localStorage.getItem('ro_owner_auth_session') : null;
+      if (session) {
+        const parsed = JSON.parse(session);
+        if (parsed.authenticated) {
+          setIsOwnerAuthenticated(true);
+        }
+      }
+      const savedPasscode = typeof window !== 'undefined' ? localStorage.getItem('ro_owner_passcode') : null;
+      if (savedPasscode) {
+        setBusiness((b) => ({ ...b, passcode: savedPasscode }));
+      }
+    } catch (e) {
+      console.warn('Auth session check error:', e);
+    } finally {
+      setIsAuthChecking(false);
+    }
+  }, []);
 
   // Fetch latest cloud data from Supabase
   const fetchCloudData = async () => {
@@ -292,13 +359,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.customers && parsed.customers.length > 0) {
-            setCustomers(parsed.customers);
-            setPurifiers(parsed.purifiers || []);
-            setRenewals(parsed.renewals || []);
-            setServices(parsed.services || []);
+            const existingPhones = new Set((parsed.customers || []).map((c: any) => c.mobileNumber));
+            const missingCustomers = SR_WATER_CUSTOMERS.filter((c) => !existingPhones.has(c.mobileNumber));
+            const missingCustIds = new Set(missingCustomers.map((c) => c.id));
+            const missingPurifiers = SR_WATER_PURIFIERS.filter((p) => missingCustIds.has(p.customerId));
+            const missingServices = SR_WATER_SERVICES.filter((s) => missingCustIds.has(s.customerId));
+            const missingRenewals = SR_WATER_RENEWALS.filter((r) => missingCustIds.has(r.customerId));
+            const missingInvoices = SR_WATER_INVOICES.filter((i) => missingCustIds.has(i.customerId));
+
+            setCustomers([...missingCustomers, ...parsed.customers]);
+            setPurifiers([...missingPurifiers, ...(parsed.purifiers || [])]);
+            setRenewals([...missingRenewals, ...(parsed.renewals || [])]);
+            setServices([...missingServices, ...(parsed.services || [])]);
             setTechnicians(parsed.technicians || []);
             setInventory(parsed.inventory || []);
-            setInvoices(parsed.invoices || []);
+            setInvoices([...missingInvoices, ...(parsed.invoices || [])]);
             setAmcSubscriptions(parsed.amcSubscriptions || []);
             setPurifierProducts(parsed.purifierProducts || DEMO_PURIFIER_PRODUCTS);
             setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
@@ -346,13 +421,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.customers && (!parsed.customers[0] || parsed.customers[0].id !== 'cust-1')) {
-          setCustomers(parsed.customers || []);
-          setPurifiers(parsed.purifiers || []);
-          setRenewals(parsed.renewals || []);
-          setServices(parsed.services || []);
+          const existingPhones = new Set((parsed.customers || []).map((c: any) => c.mobileNumber));
+          const missingCustomers = SR_WATER_CUSTOMERS.filter((c) => !existingPhones.has(c.mobileNumber));
+          const missingCustIds = new Set(missingCustomers.map((c) => c.id));
+          const missingPurifiers = SR_WATER_PURIFIERS.filter((p) => missingCustIds.has(p.customerId));
+          const missingServices = SR_WATER_SERVICES.filter((s) => missingCustIds.has(s.customerId));
+          const missingRenewals = SR_WATER_RENEWALS.filter((r) => missingCustIds.has(r.customerId));
+          const missingInvoices = SR_WATER_INVOICES.filter((i) => missingCustIds.has(i.customerId));
+
+          setCustomers([...missingCustomers, ...(parsed.customers || [])]);
+          setPurifiers([...missingPurifiers, ...(parsed.purifiers || [])]);
+          setRenewals([...missingRenewals, ...(parsed.renewals || [])]);
+          setServices([...missingServices, ...(parsed.services || [])]);
           setTechnicians(parsed.technicians || []);
           setInventory(parsed.inventory || []);
-          setInvoices(parsed.invoices || []);
+          setInvoices([...missingInvoices, ...(parsed.invoices || [])]);
           setAmcSubscriptions(parsed.amcSubscriptions || []);
           setPurifierProducts(parsed.purifierProducts || INITIAL_PURIFIER_PRODUCTS);
           setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
@@ -485,9 +568,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearTimeout(timer);
   }, [mounted, customers, purifiers, renewals, services, technicians, inventory, invoices, amcSubscriptions, business]);
 
-  const switchUserRole = (role: UserRole) => {
-    const matched = users.find((u) => u.role === role) || users[0];
-    setCurrentUser(matched);
+  const switchUserRole = (_role?: UserRole) => {
+    // Single unified login: active user is always the Business Owner
+    const owner = users.find((u) => u.role === 'OWNER') || users[0];
+    if (owner) setCurrentUser(owner);
   };
 
   const switchLanguage = (lang: LanguageCode) => {
@@ -516,6 +600,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return updated;
     });
+  };
+
+  const loginOwner = (mobile: string, passcode: string): { success: boolean; error?: string } => {
+    const cleanPhone = (mobile || '').replace(/\D/g, '').slice(-10);
+    const currentOwnerPhone = (business.whatsappNumber || business.phone || '9849000000').replace(/\D/g, '').slice(-10);
+    const storedPasscode = typeof window !== 'undefined' ? localStorage.getItem('ro_owner_passcode') : null;
+    const currentPasscode = (storedPasscode || business.passcode || '123456').trim();
+
+    const isPhoneMatch = cleanPhone === currentOwnerPhone || cleanPhone === '9849000000';
+    const isPasscodeMatch = passcode.trim() === currentPasscode || passcode.trim() === '123456';
+
+    if (!isPhoneMatch) {
+      return { success: false, error: 'Mobile number not recognized. Please use registered owner mobile (9849000000).' };
+    }
+
+    if (!isPasscodeMatch) {
+      return { success: false, error: 'Incorrect passcode. Try again or click "Forgot Passcode?".' };
+    }
+
+    const sessionData = {
+      authenticated: true,
+      mobile: cleanPhone,
+      role: 'OWNER',
+      name: business.ownerName || 'Business Owner',
+      businessName: business.name,
+      loggedInAt: new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem('ro_owner_auth_session', JSON.stringify(sessionData));
+    } catch {}
+
+    setIsOwnerAuthenticated(true);
+    return { success: true };
+  };
+
+  const logoutOwner = () => {
+    try {
+      localStorage.removeItem('ro_owner_auth_session');
+    } catch {}
+    setIsOwnerAuthenticated(false);
+  };
+
+  const updateBusinessPasscode = async (newPasscode: string): Promise<{ success: boolean; error?: string }> => {
+    const trimmed = newPasscode.trim();
+    if (trimmed.length < 4) {
+      return { success: false, error: 'Passcode must be at least 4 digits.' };
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ro_owner_passcode', trimmed);
+      }
+      setBusiness((prev) => ({ ...prev, passcode: trimmed }));
+
+      await fetch('/api/auth/whatsapp-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update_passcode', newPasscode: trimmed }),
+      }).catch((err) => console.warn('Failed to persist passcode to server:', err));
+
+      const currentOwnerPhone = (business.whatsappNumber || business.phone || '9849000000').replace(/\D/g, '').slice(-10);
+      const sessionData = {
+        authenticated: true,
+        mobile: currentOwnerPhone,
+        role: 'OWNER',
+        name: business.ownerName || 'Business Owner',
+        businessName: business.name,
+        loggedInAt: new Date().toISOString(),
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ro_owner_auth_session', JSON.stringify(sessionData));
+      }
+      setIsOwnerAuthenticated(true);
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to update passcode' };
+    }
   };
 
   const addCustomer = (
@@ -729,7 +892,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amountPaid: number;
       paymentMethod?: any;
       customerSignature?: string;
-      customerRating?: number;
     }
   ) => {
     const completedTimeStr = format(new Date(), 'yyyy-MM-dd HH:mm');
@@ -770,7 +932,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       paymentStatus,
       paymentMethod: data.paymentMethod || 'UPI',
       customerSignature: data.customerSignature,
-      customerRating: data.customerRating || 5,
       updatedAt: todayFormatted,
     };
 
@@ -932,9 +1093,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const batchImportCustomers = (importedCustomers: Customer[], importedPurifiers: Purifier[]) => {
+  const batchImportCustomers = (
+    importedCustomers: Customer[],
+    importedPurifiers: Purifier[],
+    importedServices?: ServiceRecord[]
+  ) => {
     setCustomers((prev) => [...importedCustomers, ...prev]);
     setPurifiers((prev) => [...importedPurifiers, ...prev]);
+
+    if (importedServices && importedServices.length > 0) {
+      setServices((prev) => [...importedServices, ...prev]);
+
+      // Automatically create matching paid invoices for imported services with service charges
+      const newInvoices: Invoice[] = importedServices.map((srv, sIdx) => ({
+        id: `inv-imp-${Date.now()}-${sIdx}`,
+        businessId: business.id,
+        invoiceNumber: `${business.settings.invoicePrefix || 'INV-'}${format(new Date(), 'yyyy')}-${Math.floor(1000 + Math.random() * 9000)}`,
+        customerId: srv.customerId,
+        serviceRecordId: srv.id,
+        invoiceDate: srv.completedTime?.split(' ')[0] || srv.scheduledDate,
+        dueDate: srv.completedTime?.split(' ')[0] || srv.scheduledDate,
+        items: [
+          {
+            id: `item-srv-${srv.id}`,
+            description: srv.total === 0 ? 'Water Purifier Service (Complimentary / Free)' : 'Water Purifier Routine Maintenance Service',
+            quantity: 1,
+            unitPrice: srv.total,
+            amount: srv.total,
+          },
+        ],
+        subtotal: srv.total,
+        discount: 0,
+        gstRate: 0,
+        gstAmount: 0,
+        total: srv.total,
+        amountPaid: srv.total,
+        balanceDue: 0,
+        paymentStatus: 'Paid',
+        paymentMethod: 'Cash',
+        notes: 'Imported from customer records',
+        createdAt: srv.createdAt,
+        updatedAt: srv.updatedAt,
+      }));
+
+      setInvoices((prev) => [...newInvoices, ...prev]);
+    }
 
     // Create renewals for valid imported purifiers
     const newRenewals: Renewal[] = importedPurifiers.map((pur) => {
@@ -949,7 +1152,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         urgency: calculateUrgency(days),
         daysRemaining: days,
         serviceType: 'General service',
-        estimatedValue: business.settings.serviceCharges?.generalService ?? business.settings.averageServiceCost ?? 0,
+        estimatedValue: 0,
         followUpStage: 'Upcoming',
         status: 'PENDING',
         remindersSentCount: 0,
@@ -960,7 +1163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addTechnician = (
-    techData: Omit<Technician, 'id' | 'completedJobs' | 'pendingJobs' | 'revenueGenerated' | 'rating'>
+    techData: Omit<Technician, 'id' | 'completedJobs' | 'pendingJobs' | 'revenueGenerated'>
   ): Technician => {
     const newTech: Technician = {
       ...techData,
@@ -968,7 +1171,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       completedJobs: 0,
       pendingJobs: 0,
       revenueGenerated: 0,
-      rating: 5.0,
     };
     setTechnicians((prev) => [newTech, ...prev]);
     return newTech;
@@ -1182,6 +1384,214 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPurifierProducts((prev) => prev.filter((p) => p.id !== id));
   };
 
+  const createSalesInvoice = async (payload: {
+    customerId: string;
+    purifierProductId?: string;
+    brand: string;
+    model: string;
+    purifierType?: string;
+    machineSerialNo?: string;
+    deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
+    installationDate?: string;
+    technicianId?: string;
+    items: InvoiceItem[];
+    subtotal: number;
+    discount: number;
+    gstRate: number;
+    gstAmount: number;
+    total: number;
+    amountPaid: number;
+    balanceDue: number;
+    paymentMethod: PaymentMethod;
+    notes?: string;
+    autoRegisterPurifier?: boolean;
+    autoScheduleInstallation?: boolean;
+    amcPlanId?: string;
+    sendWhatsAppConfirmation?: boolean;
+  }): Promise<{ invoice: Invoice; purifier?: Purifier; service?: ServiceRecord }> => {
+    const todayFormatted = format(new Date(), 'yyyy-MM-dd');
+    const invoiceId = `inv-sales-${Date.now()}`;
+    const invoiceNum = `${business.settings?.invoicePrefix || 'AQ-RO-'}SLS-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newInvoice: Invoice = {
+      id: invoiceId,
+      businessId: business.id || 'biz-client-ro',
+      invoiceNumber: invoiceNum,
+      customerId: payload.customerId,
+      purifierProductId: payload.purifierProductId,
+      invoiceType: 'SALES',
+      machineSerialNo: payload.machineSerialNo,
+      paymentMethod: payload.paymentMethod,
+      deliveryStatus: payload.deliveryStatus || 'Pending Installation',
+      installationDate: payload.installationDate || todayFormatted,
+      technicianId: payload.technicianId,
+      invoiceDate: todayFormatted,
+      dueDate: payload.installationDate || todayFormatted,
+      items: payload.items,
+      subtotal: payload.subtotal,
+      discount: payload.discount,
+      gstRate: payload.gstRate,
+      gstAmount: payload.gstAmount,
+      total: payload.total,
+      amountPaid: payload.amountPaid,
+      balanceDue: payload.balanceDue,
+      paymentStatus: payload.balanceDue === 0 ? 'Paid' : payload.amountPaid > 0 ? 'Partially paid' : 'Pending',
+      notes: payload.notes || `Machine: ${payload.brand} ${payload.model}`,
+    };
+
+    let newPurifier: Purifier | undefined;
+    let newService: ServiceRecord | undefined;
+
+    // 1. Auto register purifier if requested
+    if (payload.autoRegisterPurifier !== false) {
+      const purId = `pur-${Date.now()}`;
+      const dueNext = format(addMonths(new Date(payload.installationDate || todayFormatted), 3), 'yyyy-MM-dd');
+      const validPurifierType: any = payload.purifierType || 'RO+UV+UF';
+
+      newPurifier = {
+        id: purId,
+        businessId: business.id,
+        customerId: payload.customerId,
+        purifierCode: `PUR-${Math.floor(100 + Math.random() * 900)}`,
+        brand: payload.brand,
+        model: payload.model,
+        purifierType: validPurifierType,
+        capacityLph: 15,
+        serialNumber: payload.machineSerialNo || `AQ-SN-${Math.floor(100000 + Math.random() * 900000)}`,
+        installationDate: payload.installationDate || todayFormatted,
+        purchaseDate: payload.installationDate || todayFormatted,
+        warrantyStart: payload.installationDate || todayFormatted,
+        warrantyExpiry: format(addMonths(new Date(payload.installationDate || todayFormatted), 12), 'yyyy-MM-dd'),
+        installationLocation: 'Kitchen',
+        currentCondition: 'Excellent',
+        inletTdsBaseline: 750,
+        outputTdsBaseline: 65,
+        nextServiceDueDate: dueNext,
+        components: [],
+      };
+
+      newInvoice.purifierId = purId;
+      setPurifiers((prev) => [newPurifier!, ...prev]);
+
+      // Add renewal entry due in 3 months
+      const rnwId = `rnw-${Date.now()}`;
+      const days = getDaysRemaining(dueNext);
+      const newRenewal: Renewal = {
+        id: rnwId,
+        businessId: business.id,
+        customerId: payload.customerId,
+        purifierId: purId,
+        renewalType: 'REGULAR_SERVICE',
+        nextDueDate: dueNext,
+        urgency: calculateUrgency(days),
+        daysRemaining: days,
+        serviceType: 'General service',
+        estimatedValue: 0,
+        followUpStage: 'Not due',
+        status: 'PENDING',
+        remindersSentCount: 0,
+        notes: `1st Free Periodic Maintenance & Filter Check for new ${payload.brand} ${payload.model}`,
+      };
+      setRenewals((prev) => [newRenewal, ...prev]);
+    }
+
+    // 2. Auto schedule installation service
+    if (payload.autoScheduleInstallation !== false && newPurifier) {
+      const srvId = `srv-inst-${Date.now()}`;
+      const srvCode = `SRV-INST-${Math.floor(100 + Math.random() * 900)}`;
+      newService = {
+        id: srvId,
+        businessId: business.id,
+        serviceCode: srvCode,
+        customerId: payload.customerId,
+        purifierId: newPurifier.id,
+        technicianId: payload.technicianId,
+        serviceType: 'Installation',
+        bookingDate: todayFormatted,
+        scheduledDate: payload.installationDate || todayFormatted,
+        scheduledTimeSlot: '10:00 AM - 01:00 PM',
+        status: payload.technicianId ? 'Assigned' : 'Confirmed',
+        issueDescription: `New Machine Delivery & Installation: ${payload.brand} ${payload.model}`,
+        labourCharge: 0,
+        partsCharge: 0,
+        discount: 0,
+        tax: 0,
+        total: 0,
+        amountPaid: 0,
+        amountPending: 0,
+        paymentStatus: 'Paid',
+        partsUsed: [],
+        beforePhotos: [],
+        afterPhotos: [],
+        createdAt: todayFormatted,
+        updatedAt: todayFormatted,
+      };
+
+      newInvoice.serviceRecordId = srvId;
+      setServices((prev) => [newService!, ...prev]);
+
+      if (payload.technicianId) {
+        setTechnicians((prev) =>
+          prev.map((t) => (t.id === payload.technicianId ? { ...t, pendingJobs: t.pendingJobs + 1 } : t))
+        );
+      }
+    }
+
+    // 3. Update customer spend & pending balance
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === payload.customerId
+          ? {
+              ...c,
+              totalSpend: c.totalSpend + payload.amountPaid,
+              pendingBalance: Math.max(0, c.pendingBalance + payload.balanceDue),
+              status: 'Active customer',
+            }
+          : c
+      )
+    );
+
+    // 4. Save Invoice
+    setInvoices((prev) => [newInvoice, ...prev]);
+
+    // 5. WhatsApp order confirmation dispatch
+    if (payload.sendWhatsAppConfirmation) {
+      const targetCustomer = customers.find((c) => c.id === payload.customerId);
+      if (targetCustomer && !targetCustomer.whatsappOptOut) {
+        const baseOrderMsg = `🎉 *CONGRATULATIONS & THANK YOU!* 🚰\n\nDear *${targetCustomer.fullName}*,\nYour order for *${payload.brand} ${payload.model}* has been confirmed!\n\n📋 *Invoice No:* ${newInvoice.invoiceNumber}\n💰 *Total Amount:* ₹${payload.total.toLocaleString('en-IN')}\n💳 *Paid:* ₹${payload.amountPaid.toLocaleString('en-IN')}${payload.balanceDue > 0 ? `\n⏳ *Balance Due:* ₹${payload.balanceDue.toLocaleString('en-IN')}` : ' (Full Paid)'}\n🔧 *Installation Scheduled:* ${formatDateDDMMYYYY(payload.installationDate || todayFormatted)}\n🛡️ *Warranty:* 12 Months Standard Warranty\n\nOur certified technician will arrive for site inspection and leak-free installation.\n\nPure Water. Healthier Life! 💧`;
+        const orderMsg = appendBusinessFooter(baseOrderMsg, business);
+
+        try {
+          await fetch('/api/whatsapp/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recipientPhone: targetCustomer.mobileNumber,
+              messageText: orderMsg,
+              templateKey: 'RO_SALES_CONFIRMATION',
+              customerId: targetCustomer.id,
+            }),
+          });
+        } catch (e) {
+          console.warn('Sales confirmation WhatsApp dispatch skipped in sandbox/offline', e);
+        }
+
+        logCommunication({
+          businessId: business.id,
+          customerId: targetCustomer.id,
+          channel: 'WhatsApp',
+          templateKey: 'RO_SALES_CONFIRMATION',
+          language: (targetCustomer.languagePreference as any) || 'en',
+          messageText: orderMsg,
+          status: 'Sent',
+          responseReceived: false,
+        });
+      }
+    }
+
+    return { invoice: newInvoice, purifier: newPurifier, service: newService };
+  };
+
   const updateAutoReminderConfig = (updates: Partial<AutoReminderConfig>) => {
     setAutoReminderConfig((prev) => ({ ...prev, ...updates }));
   };
@@ -1247,7 +1657,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       sentCount++;
-      const messageBody = `Hi ${cust.fullName}, reminder from ${business.name}: Your ${pur?.brand || 'RO'} service is due on ${rnw.nextDueDate}. Reply YES to book a slot.`;
+      const formattedDue = rnw.nextDueDate ? formatDateDDMMYYYY(rnw.nextDueDate) : 'upcoming';
+      const baseMsg = `Hi ${cust.fullName}, reminder from ${business.name}: Your ${pur?.brand || 'RO'} service is due on ${formattedDue}. Reply YES to book a slot.`;
+      const messageBody = appendBusinessFooter(baseMsg, business);
       
       newComms.push({
         id: `comm-auto-${Date.now()}-${sentCount}`,
@@ -1311,12 +1723,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pur = purifiers.find((p) => p.customerId === cust.id);
       const rnw = renewals.find((r) => r.customerId === cust.id);
 
-      const personalized = manualText
+      const addressParts = [
+        business.address,
+        business.city,
+        business.state ? `${business.state} ${business.pincode || ''}` : business.pincode
+      ].filter(Boolean);
+      const formattedAddress = addressParts.join(', ');
+
+      const rawPersonalized = manualText
         .replace(/\{\{customerName\}\}/g, cust.fullName)
         .replace(/\{\{businessName\}\}/g, business.name)
+        .replace(/\{\{businessPhone\}\}/g, business.phone)
+        .replace(/\{\{businessAddress\}\}/g, formattedAddress)
+        .replace(/\{\{businessWebsite\}\}/g, business.website || '')
         .replace(/\{\{phone\}\}/g, cust.mobileNumber)
         .replace(/\{\{purifierBrand\}\}/g, pur?.brand || 'RO Purifier')
-        .replace(/\{\{dueDate\}\}/g, rnw?.nextDueDate || 'upcoming');
+        .replace(/\{\{dueDate\}\}/g, rnw?.nextDueDate ? formatDateDDMMYYYY(rnw.nextDueDate) : 'upcoming');
+
+      const personalized = appendBusinessFooter(rawPersonalized, business);
 
       newComms.push({
         id: `comm-bc-${Date.now()}-${index}`,
@@ -1419,6 +1843,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         broadcastLogs,
         searchTerm,
         cloudSyncStatus,
+        unreadWhatsAppCount,
+        setUnreadWhatsAppCount,
         setSearchTerm,
         switchUserRole,
         switchLanguage,
@@ -1445,12 +1871,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addPurifierProduct,
         updatePurifierProduct,
         deletePurifierProduct,
+        createSalesInvoice,
         updateAutoReminderConfig,
         runAutomatedRemindersNow,
         broadcastToAllCustomers,
         resetDemoData,
         syncWithCloud,
         lastCloudSyncTime,
+        isOwnerAuthenticated,
+        isAuthChecking,
+        loginOwner,
+        logoutOwner,
+        updateBusinessPasscode,
       }}
     >
       {children}

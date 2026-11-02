@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Customer, Purifier, ServiceRecord, CommunicationLog, ServiceType, ServiceStatus } from '@/types';
 import { useApp } from '@/context/AppContext';
-import { formatIndianCurrency, getServiceCharge } from '@/lib/utils';
+import { formatIndianCurrency, getServiceCharge, formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import {
   X,
@@ -159,7 +159,6 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
     return getServiceCharge('Periodic service', business?.settings);
   });
   const [logPaymentMethod, setLogPaymentMethod] = useState<'UPI' | 'Cash' | 'Card'>('UPI');
-  const [logRating, setLogRating] = useState<number>(5);
 
   // AMC Enrollment Form State
   const [enrollPlanId, setEnrollPlanId] = useState<string>(amcPlans[0]?.id || 'CUSTOM_TYPED');
@@ -185,7 +184,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
       if (installDate) {
         list.push({
           id: `inst-${primaryPurifier.id}`,
-          businessId: business.id || 'biz-client-ro',
+          businessId: business.id,
           serviceCode: `INST-${(primaryPurifier.brand || 'RO').slice(0, 3).toUpperCase()}-01`,
           customerId: currentCustomer.id,
           purifierId: primaryPurifier.id,
@@ -200,25 +199,16 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
           workSummary: `Installed and commissioned ${primaryPurifier.brand} ${primaryPurifier.model}. Plumbing lines connected, electrical setup verified, filters primed, and membrane calibrated.`,
           inletWaterTds: primaryPurifier.inletTdsBaseline,
           outputWaterTds: primaryPurifier.outputTdsBaseline,
-          partsUsed: [
-            {
-              id: 'p-inst-set',
-              name: `${primaryPurifier.brand} Purifier Unit & Initial Filter Kit`,
-              quantity: 1,
-              unitPrice: 0,
-              totalPrice: 0,
-            },
-          ],
-          labourCharge: getServiceCharge('Installation', business?.settings) || 0,
+          partsUsed: [],
+          labourCharge: 0,
           partsCharge: 0,
           discount: 0,
           tax: 0,
-          total: getServiceCharge('Installation', business?.settings) || 0,
-          amountPaid: getServiceCharge('Installation', business?.settings) || 0,
+          total: 0,
+          amountPaid: 0,
           amountPending: 0,
           paymentStatus: 'Paid',
           paymentMethod: 'Cash',
-          customerRating: 5,
           beforePhotos: [],
           afterPhotos: [],
           createdAt: installDate,
@@ -269,7 +259,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
 
     if (enrollPlanId === 'CUSTOM_TYPED') {
       const newPlan = addAmcPlan({
-        businessId: 'biz-aquapure-hyd',
+        businessId: business.id,
         name: customTypedAmcName.trim() || 'Custom Maintenance Plan',
         description: `Custom contract with ${enrollVisits} visits per year.`,
         durationMonths: 12,
@@ -284,7 +274,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
     }
 
     addAmcSubscription({
-      businessId: 'biz-aquapure-hyd',
+      businessId: business.id,
       customerId: customer.id,
       purifierId: primaryPurifier.id,
       amcPlanId: targetPlanId,
@@ -310,7 +300,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
     const totalAmount = partsTotal + Number(logLabourCharge);
 
     addServiceRecord({
-      businessId: 'biz-aquapure-hyd',
+      businessId: business.id,
       customerId: customer.id,
       purifierId: primaryPurifier.id,
       technicianId: logTechId || undefined,
@@ -346,7 +336,6 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
       amountPending: 0,
       paymentStatus: 'Paid',
       paymentMethod: logPaymentMethod,
-      customerRating: logRating,
       beforePhotos: [],
       afterPhotos: [],
     });
@@ -592,17 +581,19 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px]">
                         <div>
                           <span className="text-slate-400 block">Installed On:</span>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{pur.installationDate}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {pur.installationDate ? formatDateDDMMYYYY(pur.installationDate) : 'Not specified'}
+                          </span>
                         </div>
                         <div>
                           <span className="text-slate-400 block">Last Service:</span>
                           <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                            {pur.lastServiceDate ? pur.lastServiceDate : 'Never / At Install'}
+                            {pur.lastServiceDate ? formatDateDDMMYYYY(pur.lastServiceDate) : 'Never / At Install'}
                           </span>
                         </div>
                         <div>
                           <span className="text-slate-400 block">Next Due Date:</span>
-                          <span className="font-bold text-blue-600 dark:text-blue-400">{pur.nextServiceDueDate}</span>
+                          <span className="font-bold text-blue-600 dark:text-blue-400">{formatDateDDMMYYYY(pur.nextServiceDueDate)}</span>
                         </div>
                         <div>
                           <span className="text-slate-400 block">Baseline TDS:</span>
@@ -641,7 +632,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                               )}
                             </div>
                             <p className="text-slate-500 mt-1">
-                              {pur.warrantyExpiry ? `Valid until: ${pur.warrantyExpiry}` : 'No machine warranty recorded'}
+                              {pur.warrantyExpiry ? `Valid until: ${formatDateDDMMYYYY(pur.warrantyExpiry)}` : 'No machine warranty recorded'}
                             </p>
                           </div>
 
@@ -665,7 +656,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                             </div>
                             <p className="text-slate-500 mt-1">
                               {pur.sparePartsWarrantyExpiry
-                                ? `Valid until: ${pur.sparePartsWarrantyExpiry}`
+                                ? `Valid until: ${formatDateDDMMYYYY(pur.sparePartsWarrantyExpiry)}`
                                 : 'No spare parts warranty recorded'}
                             </p>
                             {pur.sparePartsWarrantyNotes && (
@@ -714,7 +705,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     <div>
                       <span className="text-slate-400 block">Contract Period:</span>
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {customerAmc.startDate} to {customerAmc.endDate}
+                        {formatDateDDMMYYYY(customerAmc.startDate)} to {formatDateDDMMYYYY(customerAmc.endDate)}
                       </span>
                     </div>
                     <div>
@@ -808,7 +799,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-0.5">
-                          Brand: {comp.brand} • Life: {comp.expectedLifeMonths} Months • Due: {comp.nextReplacementDate}
+                          Brand: {comp.brand} • Life: {comp.expectedLifeMonths} Months • Due: {formatDateDDMMYYYY(comp.nextReplacementDate)}
                         </p>
                       </div>
 
@@ -844,7 +835,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block font-medium">RO INSTALLATION</span>
                     <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                      {primaryPurifier?.installationDate || primaryPurifier?.purchaseDate || 'Onboarding'}
+                      {primaryPurifier?.installationDate ? formatDateDDMMYYYY(primaryPurifier.installationDate) : (primaryPurifier?.purchaseDate ? formatDateDDMMYYYY(primaryPurifier.purchaseDate) : 'Onboarding')}
                     </span>
                   </div>
                   <div>
@@ -886,7 +877,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                       </span>
                     </div>
                     <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
-                      Installed on {primaryPurifier?.installationDate || primaryPurifier?.purchaseDate || 'Onboarding'} • {primaryPurifier?.brand} {primaryPurifier?.model}
+                      Installed on {primaryPurifier?.installationDate ? formatDateDDMMYYYY(primaryPurifier.installationDate) : (primaryPurifier?.purchaseDate ? formatDateDDMMYYYY(primaryPurifier.purchaseDate) : 'Onboarding')} • {primaryPurifier?.brand} {primaryPurifier?.model}
                     </p>
                   </div>
                 </div>
@@ -967,22 +958,16 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                           </div>
                         </div>
 
-                        {/* Metadata: Date, Technician, Rating */}
+                        {/* Metadata: Date, Technician, Invoice */}
                         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] text-slate-500 pb-1 border-b border-slate-100 dark:border-slate-800/80">
                           <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
                             <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                            <span>Date: {srv.scheduledDate || srv.bookingDate} {srv.completedTime ? `(${srv.completedTime})` : ''}</span>
+                            <span>Date: {formatDateDDMMYYYY(srv.scheduledDate || srv.bookingDate)} {srv.completedTime ? `(${formatDateTimeDDMMYYYY(srv.completedTime)})` : ''}</span>
                           </span>
                           {tech && (
                             <span className="flex items-center gap-1 font-medium text-indigo-600 dark:text-indigo-400">
                               <UserCheck className="w-3.5 h-3.5" />
                               <span>Technician: {tech.name}</span>
-                            </span>
-                          )}
-                          {srv.customerRating && (
-                            <span className="flex items-center gap-1 text-amber-500 font-bold">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              <span>{srv.customerRating}/5 Rating</span>
                             </span>
                           )}
                           {matchingInvoice && (
@@ -1126,7 +1111,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                       <span className="font-semibold text-emerald-600 flex items-center gap-1">
                         <MessageSquare className="w-3 h-3" /> WhatsApp Sent ({comm.language.toUpperCase()})
                       </span>
-                      <span className="text-slate-400">{comm.sentAt}</span>
+                      <span className="text-slate-400">{formatDateTimeDDMMYYYY(comm.sentAt)}</span>
                     </div>
                     <p className="text-slate-700 dark:text-slate-300 text-[11px] bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
                       {comm.messageText}
@@ -1362,7 +1347,7 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
               </div>
 
               {/* Charges & Payment */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Labour Charge (₹)
@@ -1387,19 +1372,6 @@ export const Customer360Modal: React.FC<Customer360ModalProps> = ({
                     <option value="Cash">Cash</option>
                     <option value="Card">Card</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Rating (1-5)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={logRating}
-                    onChange={(e) => setLogRating(Number(e.target.value))}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-medium"
-                  />
                 </div>
               </div>
 

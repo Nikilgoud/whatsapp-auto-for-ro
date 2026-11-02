@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Invoice } from '@/types';
-import { formatIndianCurrency, formatAmountInWords } from '@/lib/utils';
+import { formatIndianCurrency, formatAmountInWords, formatDateDDMMYYYY } from '@/lib/utils';
 import {
   FileText,
   Search,
@@ -22,6 +22,7 @@ import {
   Check,
   Calendar,
   Receipt,
+  QrCode,
 } from 'lucide-react';
 
 export const InvoiceManager: React.FC = () => {
@@ -62,6 +63,20 @@ export const InvoiceManager: React.FC = () => {
   const activeService = selectedInvoice?.serviceRecordId
     ? services.find((s) => s.id === selectedInvoice.serviceRecordId)
     : null;
+
+  // Compute live UPI details and QR image for selected invoice
+  const cleanPhone = (business.phone || '').replace(/\D/g, '').slice(-10) || '9849012345';
+  const upiId = business.whatsappNumber
+    ? `${business.whatsappNumber.replace(/\D/g, '').slice(-10)}@upi`
+    : `${cleanPhone}@upi`;
+  const invoiceBalance = selectedInvoice ? (selectedInvoice.balanceDue > 0 ? selectedInvoice.balanceDue : selectedInvoice.total) : 0;
+  const upiPayLink = selectedInvoice
+    ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(business.name)}&am=${invoiceBalance}&cu=INR&tn=${encodeURIComponent(`Invoice ${selectedInvoice.invoiceNumber}`)}`
+    : '';
+  const dynamicQrUrl = selectedInvoice
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiPayLink)}`
+    : '';
+  const activeQrImage = business.paymentQrCodeUrl || dynamicQrUrl;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -199,7 +214,7 @@ export const InvoiceManager: React.FC = () => {
                       <span>{inv.paymentStatus}</span>
                     </span>
                     <span className="text-[10px] text-slate-400 block mt-1">
-                      {inv.invoiceDate}
+                      {formatDateDDMMYYYY(inv.invoiceDate)}
                     </span>
                   </div>
                 </div>
@@ -290,7 +305,7 @@ export const InvoiceManager: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-medium">
-                        {inv.invoiceDate}
+                        {formatDateDDMMYYYY(inv.invoiceDate)}
                       </td>
 
                       <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
@@ -409,6 +424,7 @@ export const InvoiceManager: React.FC = () => {
                     <p className="flex items-center gap-3 pt-0.5">
                       <span>Phone: <strong>{business.phone}</strong></span>
                       {business.email && <span>Email: {business.email}</span>}
+                      {business.website && <span>Website: <strong>{business.website}</strong></span>}
                     </p>
                     {business.settings.gstin && (
                       <p className="font-mono text-slate-700 font-semibold pt-0.5">
@@ -427,10 +443,10 @@ export const InvoiceManager: React.FC = () => {
                   </p>
                   <div className="text-xs text-slate-500 space-y-0.5">
                     <p>
-                      Invoice Date: <strong className="text-slate-800">{selectedInvoice.invoiceDate}</strong>
+                      Invoice Date: <strong className="text-slate-800">{formatDateDDMMYYYY(selectedInvoice.invoiceDate)}</strong>
                     </p>
                     <p>
-                      Payment Due: <strong className="text-slate-800">{selectedInvoice.dueDate}</strong>
+                      Payment Due: <strong className="text-slate-800">{formatDateDDMMYYYY(selectedInvoice.dueDate)}</strong>
                     </p>
                   </div>
 
@@ -563,7 +579,29 @@ export const InvoiceManager: React.FC = () => {
 
                   <div className="pt-1 text-[11px] text-slate-500">
                     <p className="font-semibold text-slate-700">Payment Mode:</p>
-                    <p className="text-slate-600">Cash on Service Completion / Direct Bank Settlement</p>
+                    <p className="text-slate-600">UPI QR Scan & Pay / Cash / Bank Settlement</p>
+                  </div>
+
+                  {/* Payment QR Code Box: ALWAYS VISIBLE ON EVERY INVOICE */}
+                  <div className="flex items-center gap-3.5 p-3 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 print:border-slate-300 print:bg-white">
+                    <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 border border-slate-200 overflow-hidden shadow-2xs">
+                      <img
+                        src={activeQrImage}
+                        alt="Scan to Pay QR"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="text-[11px] leading-tight space-y-1">
+                      <span className="font-bold text-slate-900 block flex items-center gap-1.5">
+                        <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Scan & Pay via UPI</span>
+                      </span>
+                      <p className="text-[10px] text-slate-500 font-medium">Google Pay • PhonePe • Paytm • BHIM</p>
+                      <p className="text-[10px] text-slate-600 font-mono">UPI ID: {upiId}</p>
+                      <span className="inline-block text-[9px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded font-bold">
+                        {business.paymentQrCodeUrl ? 'Custom Business QR' : 'Instant UPI Payment'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

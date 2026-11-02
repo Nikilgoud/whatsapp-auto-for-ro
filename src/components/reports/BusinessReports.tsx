@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
 import {
   BarChart3,
   TrendingUp,
@@ -69,7 +69,7 @@ export const BusinessReports: React.FC = () => {
       const startStr = start.toISOString().split('T')[0];
       const endStr = end.toISOString().split('T')[0];
       const label = w === 0 ? 'This Week' : (w + 'w ago');
-      const periodTitle = start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) + ' - ' + end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const periodTitle = `${formatDateDDMMYYYY(start)} - ${formatDateDDMMYYYY(end)}`;
 
       const periodInvoices = invoices.filter((inv) => {
         const d = inv.invoiceDate;
@@ -593,7 +593,7 @@ export const BusinessReports: React.FC = () => {
       {/* Technician Detailed Performance Table */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">
-          Field Technician Attribution & Customer Ratings
+          Field Technician Attribution & Workload
         </h3>
 
         <div className="overflow-x-auto">
@@ -604,14 +604,13 @@ export const BusinessReports: React.FC = () => {
                 <th className="py-2.5 px-3">Primary Service Areas</th>
                 <th className="py-2.5 px-3">Completed Jobs</th>
                 <th className="py-2.5 px-3">Revenue Attributed</th>
-                <th className="py-2.5 px-3">Customer Rating</th>
                 <th className="py-2.5 px-3">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {technicians.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                  <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
                     No technicians added yet.
                   </td>
                 </tr>
@@ -630,9 +629,6 @@ export const BusinessReports: React.FC = () => {
                   </td>
                   <td className="py-3 px-3 font-bold text-emerald-600">
                     {formatIndianCurrency(t.revenueGenerated)}
-                  </td>
-                  <td className="py-3 px-3 font-bold text-amber-500">
-                    {t.rating} ★
                   </td>
                   <td className="py-3 px-3">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">

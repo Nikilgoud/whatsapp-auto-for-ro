@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { ServiceRecord, Customer, Purifier, Technician } from '@/types';
 import { generateTechnicianDispatchMessage, generateWhatsAppLink } from '@/lib/services/whatsappEngine';
+import { formatDateDDMMYYYY } from '@/lib/utils';
 import { X, Send, MessageSquare, Wrench, MapPin, User, ExternalLink, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface SendJobToTechWhatsAppModalProps {
@@ -121,7 +122,7 @@ export const SendJobToTechWhatsAppModal: React.FC<SendJobToTechWhatsAppModalProp
               📍 {customer.streetAddress}, {customer.areaLocality} • +91 {customer.mobileNumber}
             </p>
             <p className="text-slate-500">
-              📅 Scheduled: <strong>{service.scheduledDate}</strong> ({service.scheduledTimeSlot}) • Type: <strong>{service.serviceType}</strong>
+              📅 Scheduled: <strong>{formatDateDDMMYYYY(service.scheduledDate)}</strong> ({service.scheduledTimeSlot}) • Type: <strong>{service.serviceType}</strong>
             </p>
           </div>
 

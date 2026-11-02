@@ -12,6 +12,7 @@ export interface EnqueueJobParams {
 
 /**
  * Enqueue a message job to the durable database queue with optional idempotency key
+ * Uses production schema: message_jobs table
  */
 export async function enqueueMessageJob(params: EnqueueJobParams): Promise<{ jobId?: string; skipped?: boolean }> {
   const {
@@ -68,6 +69,7 @@ export async function enqueueMessageJob(params: EnqueueJobParams): Promise<{ job
 
 /**
  * Worker function to process pending message jobs with concurrency locking and exponential backoff.
+ * Uses production schema: message_jobs table
  */
 export async function processPendingMessageJobs(batchSize: number = 20): Promise<{
   processed: number;

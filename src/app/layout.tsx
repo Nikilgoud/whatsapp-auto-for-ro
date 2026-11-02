@@ -1,6 +1,15 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { AppProvider } from '@/context/AppContext';
+import { AuthProvider } from '@/context/AuthContext';
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+  weight: ['400', '500', '600', '700', '800'],
+});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -34,9 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased">
-      <body className="min-h-full flex flex-col font-sans">
-        <AppProvider>{children}</AppProvider>
+    <html lang="en" className={`h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased ${plusJakarta.variable}`}>
+      <body className={`min-h-full flex flex-col font-sans ${plusJakarta.className}`}>
+        <AuthProvider>
+          <AppProvider>{children}</AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );

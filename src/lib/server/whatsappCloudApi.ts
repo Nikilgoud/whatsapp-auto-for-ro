@@ -11,13 +11,14 @@ export interface WhatsAppSendParams {
   parameters?: string[];
   bodyText?: string;
   mediaUrl?: string | null;
-  mediaType?: 'image' | 'video' | 'document' | null;
+  mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
   mediaCaption?: string | null;
 }
 
 export interface WhatsAppSendResult {
   success: boolean;
   messageId?: string;
+  recordId?: string;
   status: 'sent' | 'queued' | 'failed';
   error?: string;
   providerResponse?: any;
@@ -40,6 +41,7 @@ export function formatWhatsAppPhoneNumber(phone: string): string {
 /**
  * Sends a WhatsApp message via Meta Cloud API or simulates in sandbox mode.
  * STRICT RULE: Never marks a message as sent unless accepted by the provider.
+ * Uses production schema tables: whatsapp_messages, whatsapp_message_events, communication_logs
  */
 export async function sendWhatsAppMessage(
   params: WhatsAppSendParams
@@ -159,7 +161,7 @@ export async function sendWhatsAppMessage(
 
   const isSuccess = providerStatus === 'sent' && Boolean(providerMessageId);
 
-  // 3. Persist record in database
+  // 3. Persist record in database using production schema tables
   try {
     const finalContent = bodyText || `Template: ${templateName} | Params: ${parameters.join(', ')}`;
 

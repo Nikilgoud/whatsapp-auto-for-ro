@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -20,7 +21,10 @@ import {
   X,
   Bot,
   MessageSquare,
+  ShoppingCart,
+  LogOut,
 } from 'lucide-react';
+import { LogoutConfirmModal } from '@/components/auth/LogoutConfirmModal';
 
 interface SidebarProps {
   activeTab: string;
@@ -30,13 +34,22 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose }) => {
-  const { business, renewals, inventory, resetDemoData, switchUserRole } = useApp();
+  const { business, renewals, inventory, resetDemoData, unreadWhatsAppCount, logoutOwner } = useApp();
+  const { logout } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
 
   const overdueCount = renewals.filter((r) => r.daysRemaining <= 0 && r.status === 'PENDING').length;
   const lowStockCount = inventory.filter((i) => i.isLowStock).length;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    {
+      id: 'whatsapp-inbox',
+      label: 'WhatsApp Inbox',
+      icon: MessageSquare,
+      badge: unreadWhatsAppCount > 0 ? unreadWhatsAppCount : undefined,
+      badgeColor: 'bg-emerald-500 text-white',
+    },
     {
       id: 'whatsapp-automation',
       label: 'WhatsApp Automation',
@@ -63,6 +76,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       icon: Package,
       badge: lowStockCount > 0 ? `${lowStockCount} Low` : undefined,
       badgeColor: 'bg-amber-500 text-white',
+    },
+    {
+      id: 'sales-hub',
+      label: 'RO Sales & Catalog',
+      icon: ShoppingCart,
+      badge: 'NEW',
+      badgeColor: 'bg-emerald-500 text-white',
     },
     { id: 'invoices', label: 'Invoices & Billing', icon: FileText },
     { id: 'reports', label: 'Business Reports', icon: BarChart3 },
@@ -153,20 +173,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         })}
       </nav>
 
-      {/* Bottom Reset Demo Data */}
-      <div className="p-3 border-t border-slate-800">
+      {/* Bottom Footer Actions */}
+      <div className="p-3 border-t border-slate-800 space-y-2">
         <button
           onClick={() => {
             if (confirm('Reset to initial realistic Hyderabad RO demo dataset?')) {
               resetDemoData();
             }
           }}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-2 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition"
+          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition"
         >
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Reset Demo Data</span>
         </button>
+
+        {/* Dedicated Logout Button */}
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-200 bg-rose-950/20 hover:bg-rose-950/50 border border-rose-900/40 rounded-xl transition"
+          title="Log out of RO Renewal Engine"
+        >
+          <LogOut className="w-4 h-4 text-rose-400" />
+          <span>Log Out</span>
+        </button>
       </div>
+
+      {showLogoutConfirm && (
+        <LogoutConfirmModal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={async () => {
+            logoutOwner();
+            await logout();
+            setShowLogoutConfirm(false);
+          }}
+        />
+      )}
     </aside>
     </>
   );

@@ -62,12 +62,6 @@ export function matchTechniciansForService(
         matchReasons.push(`High workload (${tech.pendingJobs} active jobs)`);
       }
 
-      // 4. Rating boost
-      if (tech.rating >= 4.8) {
-        score += 10;
-        matchReasons.push(`Top-rated technician (${tech.rating} ★)`);
-      }
-
       return {
         technician: tech,
         score: Math.max(10, Math.min(100, score)),

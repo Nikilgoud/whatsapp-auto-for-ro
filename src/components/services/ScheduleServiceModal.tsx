@@ -268,8 +268,8 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
                     </div>
                   </div>
 
-                  <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                    {m.technician.rating} ★
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    {m.technician.status}
                   </span>
                 </label>
               ))}

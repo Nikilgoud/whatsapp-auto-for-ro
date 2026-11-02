@@ -7,6 +7,7 @@ import { formatIndianCurrency } from '@/lib/utils';
 import { getUrgencyBadgeConfig } from '@/lib/services/dueCalculator';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import { Customer, Purifier, Renewal } from '@/types';
+import { DashboardWhatsAppWidget } from './DashboardWhatsAppWidget';
 import {
   Users,
   AlertTriangle,
@@ -24,18 +25,10 @@ import {
   ChevronRight,
   DollarSign,
   Droplet,
+  Trophy,
+  Award,
+  MapPin,
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  BarChart,
-  Bar,
-  CartesianGrid,
-} from 'recharts';
 
 interface OwnerDashboardProps {
   onNavigate: (tab: string) => void;
@@ -65,33 +58,24 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   const [selectedPurForWhatsApp, setSelectedPurForWhatsApp] = useState<Purifier | null>(null);
   const [defaultTemplate, setDefaultTemplate] = useState<string>('SERVICE_DUE');
 
-  // Dynamic monthly revenue trend from real invoices & completed services
-  const revenueChartData = useMemo(() => {
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const now = new Date();
-    const result = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mName = monthNames[d.getMonth()];
-      const yearStr = d.getFullYear().toString();
-      const mStr = String(d.getMonth() + 1).padStart(2, '0');
-      const prefix = `${yearStr}-${mStr}`;
+  // Leaderboard sorting & fleet performance metrics
+  const sortedTechnicians = useMemo(() => {
+    return [...technicians].sort((a, b) => {
+      return (b.completedJobs || 0) - (a.completedJobs || 0);
+    });
+  }, [technicians]);
 
-      const monthInvoices = invoices.filter((inv) => inv.invoiceDate?.startsWith(prefix));
-      const invRev = monthInvoices.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0);
+  const totalFleetCompletedJobs = useMemo(() => {
+    return technicians.reduce((sum, t) => sum + (t.completedJobs || 0), 0);
+  }, [technicians]);
 
-      const monthServices = services.filter((srv) =>
-        srv.status === 'Completed' &&
-        (srv.completedTime?.startsWith(prefix) || srv.scheduledDate?.startsWith(prefix) || srv.createdAt?.startsWith(prefix))
-      );
-      const srvRev = monthServices.reduce((sum, srv) => sum + (srv.amountPaid || srv.total || 0), 0);
+  const fleetServiceRevenue = useMemo(() => {
+    return technicians.reduce((sum, t) => sum + (t.revenueGenerated || 0), 0);
+  }, [technicians]);
 
-      const rev = Math.max(invRev, srvRev);
-      const srvCount = Math.max(monthInvoices.length, monthServices.length);
-      result.push({ month: mName, revenue: rev, services: srvCount });
-    }
-    return result;
-  }, [invoices, services]);
+  const availableTechsCount = useMemo(() => {
+    return technicians.filter((t) => t.status === 'Available').length;
+  }, [technicians]);
 
   // Revenue engine calculation
   const revenueStats = calculateRevenueOpportunities(
@@ -147,13 +131,14 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Welcome Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 rounded-full text-xs text-cyan-300 font-medium">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950 rounded-3xl p-6 text-white shadow-xl border border-sky-500/20 relative overflow-hidden">
+        <div className="absolute -right-12 -top-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="space-y-1 relative z-10">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 dark:bg-white/5 rounded-full text-xs text-cyan-300 font-semibold border border-cyan-400/20 backdrop-blur-xs">
             <Droplet className="w-3.5 h-3.5 text-cyan-400" />
-            <span>RO Operating System • Hyderabad Live</span>
+            <span>RO Operating System • Water-Tech Control Center</span>
           </div>
-          <h2 className="text-2xl font-bold tracking-tight">
+          <h2 className="text-2xl font-extrabold tracking-tight">
             {getGreeting()}, {ownerDisplayName}!
           </h2>
           <p className="text-xs text-slate-300">
@@ -161,10 +146,10 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 relative z-10">
           <button
             onClick={() => onNavigate('renewals')}
-            className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-sm flex items-center gap-1.5"
+            className="px-4 py-2.5 text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 rounded-xl transition shadow-sm flex items-center gap-1.5 active:scale-95"
           >
             <span>Open Renewal Pipeline</span>
             <ArrowUpRight className="w-4 h-4" />
@@ -177,17 +162,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         {/* Card 1: Customers */}
         <div
           onClick={() => onNavigate('customers')}
-          className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-400 transition cursor-pointer group"
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-cyan-500/50 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span className="font-semibold">Active Customers</span>
-            <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition">
+            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400">Active Customers</span>
+            <div className="p-2.5 bg-sky-50 dark:bg-sky-950/50 rounded-2xl text-sky-600 group-hover:bg-sky-600 group-hover:text-white transition">
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{totalCustomers}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">+{customersThisMonth} this month</span>
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">{totalCustomers}</span>
+            <span className="text-[11px] text-emerald-600 font-bold">+{customersThisMonth} this month</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Residential & Commercial RO</p>
         </div>
@@ -195,17 +180,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         {/* Card 2: Overdue Alert */}
         <div
           onClick={() => onNavigate('renewals')}
-          className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-rose-200 dark:border-rose-900/60 shadow-xs hover:border-rose-400 transition cursor-pointer group"
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-rose-200/90 dark:border-rose-900/60 shadow-xs hover:border-rose-400 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span className="font-semibold text-rose-600 dark:text-rose-400">Urgent Overdue</span>
-            <div className="p-2 bg-rose-50 dark:bg-rose-950/50 rounded-xl text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition">
+            <span className="font-bold text-[11px] uppercase tracking-wider text-rose-600 dark:text-rose-400">Urgent Overdue</span>
+            <div className="p-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-2xl text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition">
               <AlertTriangle className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{overdueRenewals.length}</span>
-            <span className="text-[11px] text-rose-600 font-medium">Needs outreach</span>
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-rose-600 dark:text-rose-400 tabular-nums tracking-tight">{overdueRenewals.length}</span>
+            <span className="text-[11px] text-rose-600 font-bold">Needs outreach</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">High risk of customer churn</p>
         </div>
@@ -213,17 +198,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         {/* Card 3: Today's Jobs */}
         <div
           onClick={() => onNavigate('services')}
-          className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-400 transition cursor-pointer group"
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-emerald-500/50 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span className="font-semibold">Today's Visits</span>
-            <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-xl text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
+            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400">Today's Visits</span>
+            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-2xl text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
               <Wrench className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{todaysJobs.length}</span>
-            <span className="text-[11px] text-emerald-600 font-medium">{activeTechniciansCount} Technicians active</span>
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">{todaysJobs.length}</span>
+            <span className="text-[11px] text-emerald-600 font-bold">{activeTechniciansCount} Techs active</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Doorstep servicing Hyderabad</p>
         </div>
@@ -231,17 +216,17 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         {/* Card 4: Monthly Revenue */}
         <div
           onClick={() => onNavigate('invoices')}
-          className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-400 transition cursor-pointer group"
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs hover:border-indigo-500/50 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs">
-            <span className="font-semibold">Month Revenue</span>
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
+            <span className="font-bold text-[11px] uppercase tracking-wider text-slate-400">Month Revenue</span>
+            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-2xl text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">{formatIndianCurrency(currentMonthRevenue)}</span>
-            <span className="text-[11px] text-slate-400 font-medium">Collected</span>
+          <div className="mt-2.5 flex items-baseline gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">{formatIndianCurrency(currentMonthRevenue)}</span>
+            <span className="text-[11px] text-emerald-600 font-bold">Collected</span>
           </div>
           <p className="text-[11px] text-slate-400 mt-1">Pending: {formatIndianCurrency(pendingInvoicesTotal)}</p>
         </div>
@@ -420,119 +405,286 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
         </div>
       </div>
 
-      {/* CHARTS ROW: Monthly Revenue + Overdue Recovery Queue */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Monthly Revenue Trend */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Monthly Service Revenue Trend</h3>
-              <p className="text-xs text-slate-500">Regular servicing, spares, and AMC subscription earnings</p>
+      {/* WHATSAPP OPERATIONS & RECENT CHATS LIVE WIDGET */}
+      <DashboardWhatsAppWidget
+        onNavigate={onNavigate}
+        onSelectCustomer={onSelectCustomer}
+      />
+
+      {/* WIDE TECHNICIAN LEADERBOARD & FIELD OPS */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        {/* Header Strip */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20 shadow-xs">
+              <Trophy className="w-6 h-6" />
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2 py-1 rounded-lg">
-              Avg Ticket: {formatIndianCurrency(invoices.length > 0 ? Math.round(invoices.reduce((sum, i) => sum + (i.amountPaid || i.total || 0), 0) / invoices.length) : 0)}
-            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">Technician Leaderboard</h3>
+                <span className="px-2.5 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 rounded-full border border-amber-300/40">
+                  Field Operations
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Real-time technician rankings, field job completion, coverage zones & active dispatch status
+              </p>
+            </div>
           </div>
 
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} textAnchor="middle" fontSize={11} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  fontSize={11}
-                  tickFormatter={(val) => `₹${val / 1000}k`}
-                />
-                <Tooltip
-                  formatter={(value: any) => [formatIndianCurrency(value), 'Revenue']}
-                  labelFormatter={(label) => `Month: ${label}`}
-                  contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#1e293b',
-                    borderRadius: '0.75rem',
-                    color: '#fff',
-                    fontSize: '12px',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#revenueGrad)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={() => onNavigate('technicians')}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+            >
+              <span>Manage Technicians</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        {/* Technician Performance Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Technician Leaderboard</h3>
-              <button
-                onClick={() => onNavigate('technicians')}
-                className="text-xs text-blue-600 font-semibold hover:underline"
-              >
-                View All
-              </button>
+        {/* Quick Fleet Metrics Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5 p-3.5 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+          <div className="p-2 sm:p-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Staff</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tabular-nums">{technicians.length}</span>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">({availableTechsCount} Ready)</span>
             </div>
+          </div>
+          <div className="p-2 sm:p-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Today&apos;s Visits</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-lg sm:text-xl font-extrabold text-blue-600 dark:text-blue-400 tabular-nums">{todaysJobs.length}</span>
+              <span className="text-[11px] text-slate-500 font-medium">scheduled</span>
+            </div>
+          </div>
+          <div className="p-2 sm:p-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Fleet Completed</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-lg sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">{totalFleetCompletedJobs}</span>
+              <span className="text-[11px] text-slate-500 font-medium">jobs closed</span>
+            </div>
+          </div>
+          <div className="p-2 sm:p-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Fleet Serviced</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-lg sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {formatIndianCurrency(fleetServiceRevenue)}
+              </span>
+            </div>
+          </div>
+        </div>
 
-            <div className="space-y-3">
-              {technicians.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">
-                  No technicians added yet.
-                </div>
-              ) : (
-                technicians.map((tech) => (
-                  <div
-                    key={tech.id}
-                    className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                        {tech.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white">{tech.name}</p>
-                        <p className="text-[10px] text-slate-500">
-                          {tech.serviceAreas?.[0] || 'General'} zone • {tech.rating || 5} ★
-                        </p>
+        {/* Wider Grid of Technicians */}
+        {sortedTechnicians.length === 0 ? (
+          <div className="text-center py-12 px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl my-2">
+            <Wrench className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No field technicians added yet</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">
+              Add your RO service engineers and mechanics to track job completions, dispatch emergency visits, and allocate service areas.
+            </p>
+            <button
+              onClick={() => onNavigate('technicians')}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow-md shadow-blue-500/20"
+            >
+              Add First Technician
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {sortedTechnicians.map((tech, idx) => {
+              const rank = idx + 1;
+              const isTop = rank === 1;
+              const isSecond = rank === 2;
+              const isThird = rank === 3;
+
+              return (
+                <div
+                  key={tech.id}
+                  className={`relative p-4 rounded-2xl border transition-all hover:shadow-md ${
+                    isTop
+                      ? 'bg-gradient-to-b from-amber-500/5 via-white to-white dark:from-amber-500/10 dark:via-slate-900 dark:to-slate-900 border-amber-300/80 dark:border-amber-500/40 shadow-xs'
+                      : 'bg-white dark:bg-slate-900/90 border-slate-200/90 dark:border-slate-800'
+                  }`}
+                >
+                  {/* Top Bar: Rank & Status */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-1.5">
+                      {isTop && (
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gradient-to-r from-amber-400 to-amber-500 text-amber-950 shadow-xs">
+                          <Trophy className="w-3 h-3 fill-amber-950" />
+                          <span>#1 Leader</span>
+                        </span>
+                      )}
+                      {isSecond && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+                          #2 Runner
+                        </span>
+                      )}
+                      {isThird && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
+                          #3
+                        </span>
+                      )}
+                      {rank > 3 && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                          #{rank}
+                        </span>
+                      )}
+                    </div>
+
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${
+                        tech.status === 'Available'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : tech.status === 'On job'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                          : tech.status === 'Busy'
+                          ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          tech.status === 'Available'
+                            ? 'bg-emerald-500 animate-pulse'
+                            : tech.status === 'On job'
+                            ? 'bg-blue-500'
+                            : tech.status === 'Busy'
+                            ? 'bg-amber-500'
+                            : 'bg-slate-400'
+                        }`}
+                      />
+                      <span>{tech.status}</span>
+                    </span>
+                  </div>
+
+                  {/* Technician Profile Card Header */}
+                  <div className="flex items-center gap-3 mb-3.5">
+                    <div
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${
+                        isTop
+                          ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 font-extrabold'
+                          : 'bg-gradient-to-tr from-blue-600 to-indigo-600 text-white'
+                      }`}
+                    >
+                      {tech.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                        {tech.name}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          {tech.phone}
+                        </span>
+                        <span className="text-slate-300 dark:text-slate-700">•</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {tech.skills?.[0] || 'RO Specialist'}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">{tech.completedJobs} Jobs</p>
-                      <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">
-                        {tech.status}
+                  </div>
+
+                  {/* Metrics Box */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-700/60 mb-3 text-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-medium">Completed</span>
+                      <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
+                        {tech.completedJobs || 0} Jobs
+                      </span>
+                    </div>
+                    <div className="border-l border-slate-200 dark:border-slate-700">
+                      <span className="text-[10px] text-slate-400 block font-medium">Active / Pending</span>
+                      <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400 tabular-nums">
+                        {tech.pendingJobs || 0} Visits
                       </span>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
 
-          {technicians.length > 0 ? (
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-300">
-              <span className="font-semibold">Smart Locality Routing: </span>
-              {technicians.map((t) => `${t.name} (${t.serviceAreas.join(', ') || 'All areas'})`).join(' • ')}
+                  {/* Locality Tags */}
+                  <div className="mb-3.5">
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1.5 font-medium">
+                      <MapPin className="w-3 h-3 text-slate-400" />
+                      <span>Service Localities</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {tech.serviceAreas && tech.serviceAreas.length > 0 ? (
+                        tech.serviceAreas.slice(0, 3).map((area) => (
+                          <span
+                            key={area}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            {area}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">All Hyderabad zones</span>
+                      )}
+                      {tech.serviceAreas && tech.serviceAreas.length > 3 && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500">
+                          +{tech.serviceAreas.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <button
+                      onClick={() => onNavigate('technicians')}
+                      className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-lg transition text-center"
+                    >
+                      View Details
+                    </button>
+                    {tech.whatsappNumber && (
+                      <a
+                        href={`https://wa.me/${tech.whatsappNumber.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 rounded-lg transition border border-emerald-200 dark:border-emerald-800"
+                        title="Chat with Technician on WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {tech.phone && (
+                      <a
+                        href={`tel:${tech.phone}`}
+                        className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 rounded-lg transition border border-blue-200 dark:border-blue-800"
+                        title="Call Technician"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Locality Coverage Routing Footer */}
+        {technicians.length > 0 && (
+          <div className="mt-5 p-3.5 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-slate-50/70 dark:from-slate-800/60 dark:via-indigo-950/30 dark:to-slate-800/60 rounded-2xl border border-blue-100 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div>
+                <span className="font-bold text-slate-900 dark:text-white">Smart Locality Coverage: </span>
+                <span className="text-slate-600 dark:text-slate-400">
+                  {technicians.map((t) => `${t.name} (${t.serviceAreas.join(', ') || 'All zones'})`).join(' • ')}
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-500">
-              Add field technicians in the Technicians tab to assign service jobs.
-            </div>
-          )}
-        </div>
+            <button
+              onClick={() => onNavigate('technicians')}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline shrink-0 self-start sm:self-auto"
+            >
+              Manage Zones →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* OVERDUE RECOVERY TABLE (PRIORITY LIST) */}

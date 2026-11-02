@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { ServiceRecord, Customer, Purifier } from '@/types';
-import { formatIndianCurrency, getServiceCharge } from '@/lib/utils';
+import { formatIndianCurrency, getServiceCharge, formatDateDDMMYYYY } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import { SendJobToTechWhatsAppModal } from '@/components/technician/SendJobToTechWhatsAppModal';
 import {
@@ -228,7 +228,7 @@ export const ServiceList: React.FC<ServiceListProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Schedule & Purifier</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200 block">
-                      {srv.scheduledDate}
+                      {formatDateDDMMYYYY(srv.scheduledDate)}
                     </span>
                     <span className="text-[11px] text-slate-500 block truncate">
                       {srv.scheduledTimeSlot}
@@ -371,7 +371,7 @@ export const ServiceList: React.FC<ServiceListProps> = ({
 
                     <td className="py-3.5 px-4">
                       <span className="font-semibold text-slate-900 dark:text-white block">
-                        {srv.scheduledDate}
+                        {formatDateDDMMYYYY(srv.scheduledDate)}
                       </span>
                       <span className="text-[11px] text-slate-400">{srv.scheduledTimeSlot}</span>
                     </td>

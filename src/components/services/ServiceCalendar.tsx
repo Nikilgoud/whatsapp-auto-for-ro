@@ -58,7 +58,7 @@ export const ServiceCalendar: React.FC<ServiceCalendarProps> = ({
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="px-3 font-semibold text-slate-800 dark:text-slate-200">
-              {format(selectedDate, 'dd MMMM yyyy')}
+              {format(selectedDate, 'dd/MM/yyyy')}
             </span>
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
@@ -128,7 +128,7 @@ export const ServiceCalendar: React.FC<ServiceCalendarProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <span>Schedule for {format(selectedDate, 'EEEE, d MMMM yyyy')}</span>
+            <span>Schedule for {format(selectedDate, 'EEEE, dd/MM/yyyy')}</span>
             <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-full">
               {dayServices.length} Appointments
             </span>

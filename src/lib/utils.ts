@@ -37,6 +37,76 @@ export function formatAmountInWords(num: number): string {
 }
 
 /**
+ * Formats any date string ('YYYY-MM-DD', ISO string, Date object) into standard 'DD/MM/YYYY'.
+ * Universal Indian date format.
+ */
+export function formatDateDDMMYYYY(
+  dateInput: string | Date | null | undefined,
+  fallback: string = '—'
+): string {
+  if (!dateInput) return fallback;
+  try {
+    if (typeof dateInput === 'string') {
+      const trimmed = dateInput.trim();
+      if (!trimmed || trimmed === 'N/A' || trimmed === '—') return fallback;
+
+      // If already DD/MM/YYYY or DD-MM-YYYY
+      const dmy = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+      if (dmy) {
+        const d = dmy[1].padStart(2, '0');
+        const m = dmy[2].padStart(2, '0');
+        const y = dmy[3];
+        return `${d}/${m}/${y}`;
+      }
+
+      // If YYYY-MM-DD or YYYY/MM/DD
+      const ymd = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (ymd) {
+        const y = ymd[1];
+        const m = ymd[2].padStart(2, '0');
+        const d = ymd[3].padStart(2, '0');
+        return `${d}/${m}/${y}`;
+      }
+    }
+
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return fallback || String(dateInput);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return fallback || (typeof dateInput === 'string' ? dateInput : '');
+  }
+}
+
+/** Alias for formatDateDDMMYYYY */
+export const formatDisplayDate = formatDateDDMMYYYY;
+
+/**
+ * Formats any timestamp or date into 'DD/MM/YYYY, hh:mm A'
+ */
+export function formatDateTimeDDMMYYYY(
+  dateInput: string | Date | null | undefined,
+  fallback: string = '—'
+): string {
+  if (!dateInput) return fallback;
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return formatDateDDMMYYYY(dateInput, fallback);
+    const dateStr = formatDateDDMMYYYY(d, fallback);
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${dateStr}, ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+  } catch {
+    return formatDateDDMMYYYY(dateInput, fallback);
+  }
+}
+
+/**
  * Returns owner-configured charge for a specific service type.
  * Never returns automatic hardcoded fees; returns 0 if not configured.
  */

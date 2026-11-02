@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Technician, ServiceRecord, Customer, Purifier } from '@/types';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
 import { AddTechnicianModal } from '@/components/technician/AddTechnicianModal';
 import { SendJobToTechWhatsAppModal } from '@/components/technician/SendJobToTechWhatsAppModal';
+import { Technician360Modal } from '@/components/technician/Technician360Modal';
 import { generateWhatsAppLink } from '@/lib/services/whatsappEngine';
 import {
   Users,
@@ -13,7 +14,6 @@ import {
   Phone,
   MessageSquare,
   MapPin,
-  Star,
   CheckCircle2,
   Wrench,
   Calendar,
@@ -22,6 +22,8 @@ import {
   ArrowRight,
   Trash2,
   AlertTriangle,
+  Award,
+  ChevronRight,
 } from 'lucide-react';
 
 interface TechniciansManagerProps {
@@ -36,6 +38,7 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
   const { technicians, services, customers, purifiers, business, deleteTechnician } = useApp();
 
   const [isAddTechOpen, setIsAddTechOpen] = useState(false);
+  const [selectedTechFor360, setSelectedTechFor360] = useState<Technician | null>(null);
   const [selectedServiceToDispatch, setSelectedServiceToDispatch] = useState<ServiceRecord | null>(null);
   const [selectedTechForDispatch, setSelectedTechForDispatch] = useState<Technician | null>(null);
   const [techToDelete, setTechToDelete] = useState<Technician | null>(null);
@@ -117,12 +120,19 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
               <div className="space-y-3">
                 {/* Tech Profile Header */}
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center shadow-md">
+                  <div
+                    onClick={() => setSelectedTechFor360(tech)}
+                    className="flex items-center gap-3 cursor-pointer group"
+                    title="Click to view Technician 360° Profile"
+                  >
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center shadow-md group-hover:scale-105 transition">
                       {tech.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white">{tech.name}</h3>
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white group-hover:text-blue-600 transition flex items-center gap-1">
+                        <span>{tech.name}</span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition" />
+                      </h3>
                       <p className="text-[11px] text-slate-400 font-mono">
                         📱 +91 {tech.phone}
                       </p>
@@ -149,25 +159,18 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
                   </div>
                 </div>
 
-                {/* Rating & Stats */}
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                {/* Workload & Stats */}
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
                   <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block">Rating</span>
-                    <span className="font-bold text-amber-500 flex items-center justify-center gap-0.5 mt-0.5">
-                      <Star className="w-3 h-3 fill-amber-400" /> {tech.rating}
-                    </span>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block">Active Jobs</span>
-                    <span className="font-bold text-blue-600 mt-0.5">
+                    <span className="text-[10px] text-slate-400 block font-medium">Active Visits</span>
+                    <span className="font-extrabold text-blue-600 mt-0.5 block text-sm">
                       {activeJobs.length}
                     </span>
                   </div>
 
                   <div className="p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block">Completed</span>
-                    <span className="font-bold text-emerald-600 mt-0.5">
+                    <span className="text-[10px] text-slate-400 block font-medium">Completed</span>
+                    <span className="font-extrabold text-emerald-600 mt-0.5 block text-sm">
                       {tech.completedJobs || completedJobs.length}
                     </span>
                   </div>
@@ -209,7 +212,7 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
                                 {cust?.fullName || 'Customer'}
                               </span>
                               <span className="text-[10px] text-slate-400">
-                                {job.scheduledDate} • {job.scheduledTimeSlot}
+                                {formatDateDDMMYYYY(job.scheduledDate)} • {job.scheduledTimeSlot}
                               </span>
                             </div>
                             <button
@@ -234,6 +237,14 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
 
               {/* Action Buttons for Owner */}
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <button
+                  onClick={() => setSelectedTechFor360(tech)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800/80 font-bold rounded-xl transition shadow-2xs cursor-pointer"
+                >
+                  <Award className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Work History & Field Performance 360°</span>
+                </button>
+
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
                     onClick={() => onOpenSchedule(tech.id)}
@@ -262,6 +273,17 @@ export const TechniciansManager: React.FC<TechniciansManagerProps> = ({
         <AddTechnicianModal
           isOpen={isAddTechOpen}
           onClose={() => setIsAddTechOpen(false)}
+        />
+      )}
+
+      {/* Technician 360° Work History & Performance Modal */}
+      {selectedTechFor360 && (
+        <Technician360Modal
+          isOpen={!!selectedTechFor360}
+          onClose={() => setSelectedTechFor360(null)}
+          technician={selectedTechFor360}
+          onSelectCustomer={onSelectCustomer}
+          onOpenSchedule={onOpenSchedule}
         />
       )}
 

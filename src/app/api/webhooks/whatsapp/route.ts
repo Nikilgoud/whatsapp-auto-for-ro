@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * GET: Meta Webhook Verification Handshake
+ * Requires WHATSAPP_WEBHOOK_VERIFY_TOKEN to be set in environment (no hardcoded fallback in production)
  */
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -13,7 +14,12 @@ export async function GET(req: NextRequest) {
   const token = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'ro_service_verify_token_2026';
+  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+
+  if (!verifyToken) {
+    console.error('WHATSAPP_WEBHOOK_VERIFY_TOKEN not configured');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
 
   if (mode === 'subscribe' && token === verifyToken) {
     return new NextResponse(challenge, {
@@ -27,6 +33,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST: Meta Webhook Ingestion (Delivery receipts & Customer messages)
+ * Uses production schema column names
  */
 export async function POST(req: NextRequest) {
   try {
@@ -89,11 +96,12 @@ export async function POST(req: NextRequest) {
         const messageText = (msg.text?.body || '').trim();
         const upperText = messageText.toUpperCase();
 
-        // Find customer record by phone
+        // Find customer record by phone using production schema column names
+        // customers.mobile_number, customers.whatsapp_number
         const { data: customer } = await supabaseAdmin
           .from('customers')
-          .select('id, business_id, name, language_preference, opt_out_whatsapp')
-          .or(`phone.eq.${fromPhone},phone.eq.${fromPhone.replace(/^91/, '')}`)
+          .select('id, business_id, full_name, language_preference, whatsapp_opt_out')
+          .or(`mobile_number.eq.${fromPhone},mobile_number.eq.${fromPhone.replace(/^91/, '')},whatsapp_number.eq.${fromPhone},whatsapp_number.eq.${fromPhone.replace(/^91/, '')}`)
           .maybeSingle();
 
         const businessId = customer?.business_id || '00000000-0000-0000-0000-000000000001';
@@ -116,7 +124,7 @@ export async function POST(req: NextRequest) {
           if (customer?.id) {
             await supabaseAdmin
               .from('customers')
-              .update({ opt_out_whatsapp: true })
+              .update({ whatsapp_opt_out: true })
               .eq('id', customer.id);
           }
 
@@ -139,7 +147,7 @@ export async function POST(req: NextRequest) {
           if (customer?.id) {
             await supabaseAdmin
               .from('customers')
-              .update({ opt_out_whatsapp: false })
+              .update({ whatsapp_opt_out: false })
               .eq('id', customer.id);
           }
 
@@ -159,15 +167,15 @@ export async function POST(req: NextRequest) {
 
         // C. Grounded 24/7 Intelligent RO Assistant
         let replyText = '';
-        const isTelugu = customer?.language_preference === 'te' || /[\u0C00-\u0C7F]/.test(messageText);
+        const isTelugu = customer?.language_preference === 'te' || /[ఀ-౿]/.test(messageText);
 
         if (/book|service|appointment|సర్వీస్|రిపేర్/i.test(messageText)) {
           replyText = isTelugu
-            ? `నమస్తే ${customer?.name || ''}, మీ RO సర్వీస్ బుకింగ్ అభ్యర్థన నమోదు చేయబడింది. మా అధీకృత టెక్నీషియన్ అతి త్వరలో మిమ్మల్ని సంప్రదిస్తారు. అత్యవసరమైతే మా హెల్ప్‌లైన్‌కు కాల్ చేయండి.`
-            : `Hello ${customer?.name || ''}, your RO service booking request has been noted. Our authorized technician will contact you shortly to confirm the appointment.`;
+            ? `నమస్తే ${customer?.full_name || ''}, మీ RO సర్వీస్ బుకింగ్ అభ్యర్థన నమోదు చేయబడింది. మా అధీక్షక టెక్నీషియన్ అతి త్వరలో మిమ్మల్ని సంప్రదిస్తారు. అత్యవసరమైతే మా హెల్ప్‌లైన్‌కు కాల్ చేయండి.`
+            : `Hello ${customer?.full_name || ''}, your RO service booking request has been noted. Our authorized technician will contact you shortly to confirm the appointment.`;
         } else if (/cost|price|filter|rate|ధర|ఖర్చు/i.test(messageText)) {
           replyText = isTelugu
-            ? `సాధారణ RO సర్వీస్ ఛార్జ్ ₹299 నుండి ప్రారంభమవుతుంది. పూర్తి సెడిమెంట్, కార్బన్ ఫిల్టర్ మార్పు ప్యాకేజీ ₹1,200 నుండి ప్రారంభమవుతుంది. మా ప్రతినిధి మీకు పూర్తి వివరాలు అందజేస్తారు.`
+            ? `సాధారణ RO సర్వీస్ ఛార్జ్ ₹299 నుండి ప్రారంభమవుతుంది. పూర్తి సెడిమెంట్, కార్బన్ ఫిల్టర్ మార్పు ప్యాకేజీ ₹1,200 నుండి ప్రారంభమవుతుంది. మా ప్రతినిధి మీకు పూర్తి వివరాలు అందజేరుతారు.`
             : `General RO inspection starts from ₹299. Standard filter replacement packages start from ₹1,200 including genuine parts and testing.`;
         } else if (/tds|taste|leak|water|రుచి|నీరు/i.test(messageText)) {
           replyText = isTelugu
@@ -176,7 +184,7 @@ export async function POST(req: NextRequest) {
         } else {
           replyText = isTelugu
             ? `నమస్తే, నికి ఆక్వాప్యూర్ RO సర్వీసెస్ కు స్వాగతం. మీ సందేశం మా కస్టమర్ కేర్ టీమ్‌కు అందింది. త్వరలోనే మా ప్రతినిధి మిమ్మల్ని సంప్రదిస్తారు.`
-            : `Thank you for contacting Niki Aquapure RO Services. We have received your query. Our service desk representative will connect with you shortly.`;
+            : `Thank you for contacting Aquapure RO Services. We have received your query. Our service desk representative will connect with you shortly.`;
         }
 
         await sendWhatsAppMessage({

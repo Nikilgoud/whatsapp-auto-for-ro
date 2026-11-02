@@ -20,9 +20,39 @@ import {
   Wrench,
   Sparkles,
   Receipt,
+  MessageSquare,
+  CheckCheck,
+  Eye,
+  EyeOff,
+  Globe,
+  ShoppingCart,
+  Package,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
-import { getServiceCharge, formatIndianCurrency } from '@/lib/utils';
+import { getServiceCharge, formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
+import { formatBusinessDetailsFooter, appendBusinessFooter } from '@/lib/services/whatsappEngine';
+
+export const COMMON_RO_SPARES = [
+  { name: 'Pre-Filter Spun Candle (5 Micron)', price: 150 },
+  { name: 'Sediment Filter (10" Melt Blown)', price: 350 },
+  { name: 'Pre-Carbon / Activated Carbon Block', price: 350 },
+  { name: 'RO Membrane (80 GPD Filmtec/High TDS)', price: 1800 },
+  { name: 'Post-Carbon / Taste Enhancer Cartridge', price: 350 },
+  { name: 'Alkaline & Mineralizer Filter Cartridge', price: 650 },
+  { name: 'UV Lamp (11W Philips / High Intensity)', price: 450 },
+  { name: 'UF Ultra Filtration Hollow Fibre Membrane', price: 550 },
+  { name: 'RO Booster Pump 100 GPD (Pure Copper)', price: 2200 },
+  { name: 'SMPS Power Adapter (24V / 2.5A)', price: 850 },
+  { name: 'SV (Solenoid Valve 24V DC)', price: 450 },
+  { name: 'FR-450 Flow Restrictor', price: 150 },
+  { name: 'Pre-Filter Outer Bowl Housing Set', price: 450 },
+  { name: 'Float Valve & Auto Cut-Off Switch', price: 250 },
+  { name: 'Low Pressure Switch (LPS) Sensor', price: 250 },
+  { name: 'TDS Adjuster Brass Control Valve', price: 350 },
+  { name: 'Complete Filter Kit Replacement (Full Set)', price: 2400 },
+];
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -30,8 +60,16 @@ interface AddCustomerModalProps {
 }
 
 export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose }) => {
-  const { business, addCustomer, amcPlans, addAmcPlan, addServiceRecord } = useApp();
+  const { business, addCustomer, amcPlans, addAmcPlan, addServiceRecord, logCommunication, purifierProducts } = useApp();
   const [step, setStep] = useState<number>(1);
+
+  // Automated WhatsApp Welcome & Onboarding
+  const [sendWelcomeWhatsApp, setSendWelcomeWhatsApp] = useState<boolean>(true);
+  const [welcomeLanguage, setWelcomeLanguage] = useState<'bilingual' | 'te' | 'en'>('bilingual');
+  const [whatsappOptOut, setWhatsappOptOut] = useState<boolean>(false);
+  const [showWelcomePreview, setShowWelcomePreview] = useState<boolean>(true);
+  const [customWelcomeNote, setCustomWelcomeNote] = useState<string>('');
+  const [isEditingWelcomeMsg, setIsEditingWelcomeMsg] = useState<boolean>(false);
 
   // STEP 1 & 2: Contact & Name
   const [mobileNumber, setMobileNumber] = useState('');
@@ -52,17 +90,65 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
   const [purifierTypeDropdown, setPurifierTypeDropdown] = useState<string>('RO+UV');
   const [customPurifierType, setCustomPurifierType] = useState('RO + Alkaline');
 
-  // STEP 5: Service, Warranty & Next Service Due
+  // STEP 5: Service, Warranty, Machine Purchase & Next Service Due
   const [currentServiceTaken, setCurrentServiceTaken] = useState('New Installation & Setup');
+  const [isNewPurifierSale, setIsNewPurifierSale] = useState<boolean>(true);
+  const [purifierPrice, setPurifierPrice] = useState<number>(14500);
+  const [purifierSerialNo, setPurifierSerialNo] = useState<string>('');
+  const [matchedCatalogProduct, setMatchedCatalogProduct] = useState<string>('');
   const [serviceLabourCharge, setServiceLabourCharge] = useState<number>(0);
-  const [sparePartName, setSparePartName] = useState('');
-  const [servicePartsCharge, setServicePartsCharge] = useState<number>(0);
+  
+  // Multi-item spare parts list for Step 5 (starts empty, no automatic parts)
+  const [sparePartsList, setSparePartsList] = useState<Array<{ id: string; name: string; price: number }>>([]);
+
+  const totalSparePartsCharge = sparePartsList.reduce(
+    (sum, item) => sum + (Number(item.price) || 0),
+    0
+  );
+
+  const handleAddSparePart = (initialName: string = '', initialPrice?: number) => {
+    const matched = COMMON_RO_SPARES.find((s) => s.name.toLowerCase().includes(initialName.toLowerCase()));
+    const finalPrice = initialPrice !== undefined ? initialPrice : (matched ? matched.price : 0);
+    setSparePartsList((prev) => [
+      ...prev,
+      {
+        id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: initialName,
+        price: finalPrice,
+      },
+    ]);
+  };
+
+  const handleUpdateSparePart = (id: string, updates: Partial<{ name: string; price: number }>) => {
+    setSparePartsList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const handleRemoveSparePart = (id: string) => {
+    setSparePartsList((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const [serviceDate, setServiceDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [nextIntervalChoice, setNextIntervalChoice] = useState<'3_MONTHS' | '6_MONTHS' | 'CUSTOM'>('3_MONTHS');
   const [customIntervalMonths, setCustomIntervalMonths] = useState<number>(3);
   const [customExactDueDate, setCustomExactDueDate] = useState<string>('');
   const [inletTds, setInletTds] = useState('800');
   const [notes, setNotes] = useState('');
+
+  // Auto-fill price from catalog if available
+  React.useEffect(() => {
+    if (purifierProducts && purifierProducts.length > 0) {
+      const match = purifierProducts.find(
+        (p) =>
+          p.model.toLowerCase().includes('grand') ||
+          p.brand.toLowerCase() === 'kent'
+      );
+      if (match && match.sellingPrice) {
+        setPurifierPrice(match.sellingPrice);
+      }
+    }
+  }, [purifierProducts]);
 
   // Warranty Details (Optional)
   const [warrantyExpiry, setWarrantyExpiry] = useState('');
@@ -98,6 +184,58 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
   };
 
   const computedNextDueDate = calculateNextDueDate();
+  const finalBrand = brandDropdown === 'CUSTOM' ? customBrandName.trim() || 'Aquapure' : brandDropdown;
+  const finalPurifierType =
+    purifierTypeDropdown === 'CUSTOM'
+      ? (customPurifierType.trim() as any) || 'RO+UV'
+      : (purifierTypeDropdown as PurifierType);
+
+  // Helper to generate live personalized WhatsApp Welcome / Onboarding message
+  const generateWelcomeMessage = (): string => {
+    const custName = fullName.trim() || 'Customer';
+    const purifierName = `${finalBrand} ${model}`.trim();
+    const calculatedOutputTds = Math.round((parseInt(inletTds, 10) || 800) * 0.1);
+    const dueDateDisplay = computedNextDueDate
+      ? formatDateDDMMYYYY(computedNextDueDate)
+      : formatDateDDMMYYYY(addMonths(new Date(), 3));
+
+    const bName = business?.name || 'Aquapure RO Care';
+    const bFooter = formatBusinessDetailsFooter(business);
+
+    if (customWelcomeNote.trim()) {
+      return appendBusinessFooter(customWelcomeNote.trim(), business);
+    }
+
+    if (welcomeLanguage === 'te') {
+      return (
+        `నమస్తే ${custName} గారు! 🚰\n` +
+        `${bName} లో నమోదు చేసుకున్నందుకు ధన్యవాదాలు. మీ ${isNewPurifierSale ? 'కొత్త ' : ''}${purifierName} ప్యూరిఫైయర్ ప్రారంభ TDS ${calculatedOutputTds} ppm తో విజయవంతంగా రిజిస్టర్ చేయబడింది.\n` +
+        `🗓️ మీ తదుపరి షెడ్యూల్డ్ సర్వీస్ తేదీ: ${dueDateDisplay}.\n` +
+        `మీ తాగునీటి నాణ్యత, ఫిల్టర్ చెక్ లేదా అత్యవసర సర్వీస్ కోసం ఈ వాట్సాప్ నంబర్‌కు ఎప్పుడైనా రిప్లై ఇవ్వండి!\n\n` +
+        bFooter
+      );
+    }
+
+    if (welcomeLanguage === 'en') {
+      return (
+        `Welcome ${custName}! 🚰\n` +
+        `Thank you for registering with ${bName}. Your ${isNewPurifierSale ? 'new ' : ''}${purifierName} has been registered with initial TDS ${calculatedOutputTds} ppm.\n` +
+        `🗓️ Your upcoming scheduled service date is: ${dueDateDisplay}.\n` +
+        `For any service assistance, filter check, or emergency water breakdown, reply to this WhatsApp number anytime!\n\n` +
+        bFooter
+      );
+    }
+
+    // Default: Bilingual (Telugu + English)
+    return (
+      `నమస్తే / Welcome ${custName}! 🚰\n` +
+      `Thank you for registering with ${bName}. Your ${isNewPurifierSale ? 'new ' : ''}${purifierName} has been registered with initial TDS ${calculatedOutputTds} ppm.\n` +
+      `🗓️ Your upcoming scheduled service date is: ${dueDateDisplay}.\n` +
+      `మీ తాగునీటి నాణ్యత, ఫిల్టర్ చెక్ లేదా ఏవైనా సమస్యల కోసం ఈ వాట్సాప్ నంబర్‌కు ఎప్పుడైనా మెసేజ్ చేయండి.\n` +
+      `For any service assistance, filter check, or emergency breakdown, reply to this WhatsApp number anytime!\n\n` +
+      bFooter
+    );
+  };
 
   // Handle GPS Current Location Detection
   const handleDetectCurrentLocation = () => {
@@ -189,6 +327,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
       finalAmcPlanId = selectedAmcPlanId;
     }
 
+    const finalMachinePrice = isNewPurifierSale ? (Number(purifierPrice) || 0) : 0;
+    const totalAmount = finalMachinePrice + (Number(serviceLabourCharge) || 0) + totalSparePartsCharge;
+    const serviceNameFinal = currentServiceTaken.trim() || 'New Installation & Setup';
+
     const newCustomer = addCustomer(
       {
         businessId: business.id,
@@ -205,10 +347,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         landmark,
         customerType,
         status: finalAmcPlanId ? 'AMC active' : 'Active customer',
-        tags: ['New Customer'],
-        notes,
-        whatsappOptOut: false,
-        totalSpend: (Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0),
+        tags: isNewPurifierSale ? ['New Purifier Unit', 'New Customer'] : ['New Customer'],
+        notes: [notes, isNewPurifierSale ? `New Machine Sale: ${finalBrand} ${model} (${formatIndianCurrency(finalMachinePrice)})` : ''].filter(Boolean).join(' | '),
+        whatsappOptOut,
+        languagePreference: welcomeLanguage,
+        totalSpend: totalAmount,
         pendingBalance: 0,
       },
       {
@@ -216,6 +359,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         model,
         purifierType: finalPurifierType,
         capacityLph: 15,
+        serialNumber: purifierSerialNo.trim() || undefined,
         installationDate: serviceDate,
         purchaseDate: serviceDate,
         warrantyStart: serviceDate,
@@ -233,11 +377,45 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     );
 
     // PERMANENT INSTALLATION & SERVICE RECORD IN SERVICE HISTORY
-    const totalAmount = (Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0);
-    const serviceNameFinal = currentServiceTaken.trim() || 'New Installation & Setup';
+    const partsUsedList: Array<{
+      id: string;
+      name: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }> = [];
+
+    if (finalMachinePrice > 0) {
+      partsUsedList.push({
+        id: `p-machine-${Date.now()}`,
+        name: `${finalBrand} ${model} (New Purifier Unit)`,
+        quantity: 1,
+        unitPrice: finalMachinePrice,
+        totalPrice: finalMachinePrice,
+      });
+    }
+
+    sparePartsList.forEach((sp, idx) => {
+      const spName = sp.name.trim();
+      const spPrice = Number(sp.price) || 0;
+      if (spName || spPrice > 0) {
+        partsUsedList.push({
+          id: sp.id || `p-part-${idx}-${Date.now()}`,
+          name: spName || `RO Spare Part #${idx + 1}`,
+          quantity: 1,
+          unitPrice: spPrice,
+          totalPrice: spPrice,
+        });
+      }
+    });
+
+    const sparePartsSummary = partsUsedList
+      .filter((p) => !p.id.includes('machine'))
+      .map((p) => p.name)
+      .join(', ');
 
     addServiceRecord({
-      businessId: business.id || 'biz-client-ro',
+      businessId: business.id,
       customerId: newCustomer.id,
       purifierId: `pur-${newCustomer.id}`,
       serviceType: serviceNameFinal.toLowerCase().includes('installation') ? 'Installation' : 'Installation',
@@ -247,25 +425,18 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
       startedTime: `${serviceDate} 10:00`,
       completedTime: `${serviceDate} 11:00`,
       status: 'Completed',
-      issueDescription: `Installation: ${finalBrand} ${model}`,
-      workSummary: `Initial RO Installation & Setup (${finalBrand} ${model}). Installed on ${serviceDate}. ${serviceNameFinal !== 'New Installation & Setup' ? `[${serviceNameFinal}]` : ''}`,
+      issueDescription: isNewPurifierSale
+        ? `New Purifier Sale & Installation: ${finalBrand} ${model}${sparePartsSummary ? ` + Spares: ${sparePartsSummary}` : ''}`
+        : `Service & Spares: ${finalBrand} ${model}${sparePartsSummary ? ` (${sparePartsSummary})` : ''}`,
+      workSummary: isNewPurifierSale
+        ? `Installed new ${finalBrand} ${model} purifier unit (${formatIndianCurrency(finalMachinePrice)}). ${serviceNameFinal} completed on ${serviceDate}.${sparePartsSummary ? ` Replaced: ${sparePartsSummary}.` : ''} Initial TDS calibrated.`
+        : `Initial RO Installation & Setup (${finalBrand} ${model}). Installed on ${serviceDate}. ${serviceNameFinal !== 'New Installation & Setup' ? `[${serviceNameFinal}]` : ''}.${sparePartsSummary ? ` Spares: ${sparePartsSummary}.` : ''}`,
       inletWaterTds: parseInt(inletTds, 10) || undefined,
       outputWaterTds: Math.round((parseInt(inletTds, 10) || 800) * 0.1),
       checklists: [],
-      partsUsed:
-        sparePartName.trim() || servicePartsCharge > 0
-          ? [
-              {
-                id: `p-${Date.now()}`,
-                name: sparePartName.trim() || 'RO Spare Part / Filter',
-                quantity: 1,
-                unitPrice: Number(servicePartsCharge) || 0,
-                totalPrice: Number(servicePartsCharge) || 0,
-              },
-            ]
-          : [],
+      partsUsed: partsUsedList,
       labourCharge: Number(serviceLabourCharge) || 0,
-      partsCharge: Number(servicePartsCharge) || 0,
+      partsCharge: totalSparePartsCharge + finalMachinePrice,
       discount: 0,
       tax: 0,
       total: totalAmount,
@@ -277,6 +448,42 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
       afterPhotos: [],
     });
 
+    // AUTOMATED WHATSAPP WELCOME & ONBOARDING DISPATCH
+    if (sendWelcomeWhatsApp && !whatsappOptOut && cleanPhone.length >= 10) {
+      const welcomeContent = generateWelcomeMessage();
+      const outputTdsCalc = Math.round((parseInt(inletTds, 10) || 800) * 0.1);
+
+      // 1. Dispatch through WhatsApp Cloud API / mock engine
+      fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipientPhone: `91${cleanPhone}`,
+          customerId: newCustomer.id,
+          customerName: fullName.trim(),
+          area: areaLocality,
+          purifierBrand: finalBrand,
+          purifierModel: model,
+          nextDueDate: computedNextDueDate,
+          outputTds: outputTdsCalc,
+          bodyText: welcomeContent,
+          languageCode: welcomeLanguage === 'te' ? 'te' : 'en',
+        }),
+      }).catch((err) => console.warn('Failed to dispatch welcome WhatsApp message:', err));
+
+      // 2. Log in AppContext communication logs for immediate audit and UI visibility
+      logCommunication({
+        businessId: business.id,
+        customerId: newCustomer.id,
+        channel: 'WhatsApp',
+        templateKey: 'WELCOME_ONBOARDING',
+        language: (welcomeLanguage === 'te' ? 'te' : welcomeLanguage === 'en' ? 'en' : 'te') as any,
+        messageText: welcomeContent,
+        status: 'Delivered',
+        responseReceived: false,
+      });
+    }
+
     onClose();
     // Reset Form
     setStep(1);
@@ -287,6 +494,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     setSparePartsWarrantyExpiry('');
     setSparePartsWarrantyNotes('');
     setSelectedAmcPlanId('none');
+    setSendWelcomeWhatsApp(true);
+    setWelcomeLanguage('bilingual');
+    setWhatsappOptOut(false);
+    setCustomWelcomeNote('');
+    setIsEditingWelcomeMsg(false);
   };
 
   return (
@@ -511,8 +723,21 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   <option value="Aquaguard / Eureka Forbes">Aquaguard / Eureka Forbes</option>
                   <option value="Livpure">Livpure</option>
                   <option value="Pureit / HUL">Pureit / HUL</option>
-                  <option value="Blue Star">Blue Star</option>
                   <option value="Havells">Havells</option>
+                  <option value="Blue Star">Blue Star</option>
+                  <option value="Aquafresh">Aquafresh</option>
+                  <option value="Aqua 2090">Aqua 2090</option>
+                  <option value="Aqua 4070">Aqua 4070</option>
+                  <option value="Aqua Innvoica">Aqua Innvoica</option>
+                  <option value="Purosis">Purosis</option>
+                  <option value="Purosis Plus">Purosis Plus</option>
+                  <option value="Finpure">Finpure</option>
+                  <option value="Aqua Pearl">Aqua Pearl</option>
+                  <option value="Aqua Copper">Aqua Copper</option>
+                  <option value="Royal Copper">Royal Copper</option>
+                  <option value="Cosmax">Cosmax</option>
+                  <option value="Lx One">Lx One</option>
+                  <option value="G + Series">G + Series</option>
                   <option value="AO Smith">AO Smith</option>
                   <option value="Voltas Beko">Voltas Beko</option>
                   <option value="Assembled / Local RO">Assembled / Local RO</option>
@@ -551,7 +776,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   <option value="RO">RO Only</option>
                   <option value="RO+UV">RO + UV</option>
                   <option value="RO+UV+UF">RO + UV + UF</option>
-                  <option value="RO+Alkaline">RO + Alkaline</option>
+                  <option value="RO+UV+UF+Alkaline">RO + UV + UF + Alkaline</option>
+                  <option value="RO+UV+Copper">RO + UV + Copper</option>
+                  <option value="Ro + Copper + Zink">Ro + Copper + Zink</option>
+                  <option value="Ro + Alkaline">Ro + Alkaline</option>
+                  <option value="Ro + Copper + Alkaline">Ro + Copper + Alkaline</option>
                   <option value="Commercial RO">Commercial RO (50+ LPH)</option>
                   <option value="CUSTOM">✏️ [Type Custom Purifier Type Below]</option>
                 </select>
@@ -623,10 +852,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   {/* Quick Preset Pills */}
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {[
+                      'New Installation & Setup',
                       'Dust filter (pre-filter) replacement',
                       'Full filter kit replacement',
                       'RO Membrane replacement',
-                      'New Installation & Setup',
                       'General Service & Cleaning',
                     ].map((preset) => (
                       <button
@@ -634,7 +863,9 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                         key={preset}
                         onClick={() => {
                           setCurrentServiceTaken(preset);
-                          const serviceType = preset.includes('Installation')
+                          const isInstall = preset.toLowerCase().includes('installation');
+                          setIsNewPurifierSale(isInstall);
+                          const serviceType = isInstall
                             ? 'Installation'
                             : preset.includes('Membrane')
                             ? 'Membrane replacement'
@@ -683,6 +914,153 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   </div>
                 </div>
 
+                {/* ======================================================== */}
+                {/* SUBSECTION: NEW PURIFIER MACHINE PRICE & PURCHASE DETAILS */}
+                {/* ======================================================== */}
+                <div
+                  className={`p-3.5 rounded-xl border transition-all ${
+                    isNewPurifierSale
+                      ? 'bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-cyan-50/30 dark:from-emerald-950/40 dark:via-teal-950/25 dark:to-slate-900 border-emerald-300 dark:border-emerald-700/80 shadow-xs'
+                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                          isNewPurifierSale
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                        }`}
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                            New Purifier Machine Sale & Pricing
+                          </h4>
+                          {isNewPurifierSale && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 rounded border border-emerald-300 dark:border-emerald-700">
+                              NEW UNIT
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Add new machine price to customer invoice & service warranty record
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle Switch */}
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isNewPurifierSale}
+                        onChange={(e) => setIsNewPurifierSale(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 shadow-xs"></div>
+                    </label>
+                  </div>
+
+                  {isNewPurifierSale && (
+                    <div className="pt-2.5 border-t border-emerald-200/80 dark:border-emerald-800/60 space-y-3">
+                      {/* Purifier Info & Catalog Quick Match */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900/80 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                              Purifier Device (from Step 4):
+                            </span>
+                            <span className="text-xs font-bold text-slate-900 dark:text-white">
+                              {finalBrand} {model} <span className="text-emerald-600 dark:text-emerald-400">({finalPurifierType})</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quick pick from sales catalog */}
+                        {purifierProducts && purifierProducts.length > 0 && (
+                          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Catalog:</span>
+                            <select
+                              value={matchedCatalogProduct}
+                              onChange={(e) => {
+                                const prodId = e.target.value;
+                                setMatchedCatalogProduct(prodId);
+                                const found = purifierProducts.find((p) => p.id === prodId);
+                                if (found) {
+                                  setPurifierPrice(found.sellingPrice);
+                                  if (found.brand) {
+                                    setBrandDropdown(found.brand);
+                                    setCustomBrandName(found.brand);
+                                  }
+                                  if (found.model) setModel(found.model);
+                                  if (found.purifierType) setPurifierTypeDropdown(found.purifierType);
+                                }
+                              }}
+                              className="text-[11px] font-semibold bg-emerald-50 dark:bg-slate-800 border border-emerald-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-800 dark:text-slate-200 outline-none max-w-[210px]"
+                            >
+                              <option value="">-- Match from Catalog --</option>
+                              {purifierProducts.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.brand} {p.model} (₹{p.sellingPrice.toLocaleString('en-IN')})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Machine Price & Serial Number Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            New Purifier Selling Price (₹) *
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={purifierPrice}
+                              onChange={(e) => setPurifierPrice(Number(e.target.value) || 0)}
+                              placeholder="14500"
+                              className="w-full pl-7 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 rounded-lg outline-none font-bold text-emerald-900 dark:text-emerald-300 focus:ring-1 focus:ring-emerald-500 shadow-xs"
+                            />
+                          </div>
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5 block">
+                            Itemized on initial bill & credited to customer spend
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            Purifier Serial Number (S/N) (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={purifierSerialNo}
+                            onChange={(e) => setPurifierSerialNo(e.target.value)}
+                            placeholder="e.g. SN-KENT-2026-9842"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-mono text-slate-800 dark:text-slate-200"
+                          />
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+                            Used for warranty, filter replacement & QR stickers
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Included Warranty & Service Note */}
+                      <div className="flex items-center gap-2 p-2 bg-emerald-100/70 dark:bg-emerald-950/40 rounded-lg text-[10px] text-emerald-800 dark:text-emerald-300 font-medium">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Includes 12-Month Official Machine Warranty + Free Pre-Filter & Installation Service.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* DEDICATED CHARGES SECTION (SET BY OWNER) */}
                 <div className="p-3.5 bg-gradient-to-br from-indigo-50/70 via-blue-50/40 to-slate-50 dark:from-indigo-950/30 dark:via-blue-950/20 dark:to-slate-900 rounded-xl border border-indigo-200/80 dark:border-indigo-900/60 space-y-3">
                   <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/40 pb-2">
@@ -691,9 +1069,38 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                       <span>Service & Spare Part Charges</span>
                     </span>
                     <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 shadow-xs">
-                      Total: {formatIndianCurrency((Number(serviceLabourCharge) || 0) + (Number(servicePartsCharge) || 0))}
+                      Total: {formatIndianCurrency((isNewPurifierSale ? (Number(purifierPrice) || 0) : 0) + (Number(serviceLabourCharge) || 0) + totalSparePartsCharge)}
                     </span>
                   </div>
+
+                  {/* Dynamic itemization if new machine was purchased */}
+                  {isNewPurifierSale && (
+                    <div className="flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg text-xs border border-emerald-200 dark:border-emerald-800">
+                      <span className="text-emerald-900 dark:text-emerald-200 font-semibold flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>New Purifier Unit: {finalBrand} {model}</span>
+                      </span>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                        {formatIndianCurrency(Number(purifierPrice) || 0)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Dynamic itemization of added spare parts in summary */}
+                  {sparePartsList.filter((p) => p.name.trim() || p.price > 0).map((part, idx) => (
+                    <div
+                      key={part.id || idx}
+                      className="flex items-center justify-between p-2 bg-indigo-50/80 dark:bg-indigo-950/30 rounded-lg text-xs border border-indigo-200/70 dark:border-indigo-800"
+                    >
+                      <span className="text-indigo-950 dark:text-indigo-200 font-semibold flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>{part.name.trim() || `Spare Part #${idx + 1}`}</span>
+                      </span>
+                      <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                        {formatIndianCurrency(Number(part.price) || 0)}
+                      </span>
+                    </div>
+                  ))}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* 1. Service Name */}
@@ -724,48 +1131,163 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                         className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
                       />
                     </div>
+                  </div>
 
-                    {/* 3. Spare Part Name */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Spare Part Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Sediment Filter, Spun Candle, RO Membrane..."
-                        value={sparePartName}
-                        onChange={(e) => setSparePartName(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-medium"
-                      />
-                      {/* Quick spare part suggestions */}
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {['Sediment Filter', 'Carbon Filter', 'RO Membrane', 'Pre-Filter Candle', 'Booster Pump'].map((part) => (
-                          <button
-                            type="button"
-                            key={part}
-                            onClick={() => setSparePartName(part)}
-                            className="px-1.5 py-0.5 rounded text-[9px] bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition"
-                          >
-                            + {part}
-                          </button>
-                        ))}
+                  {/* 3. MULTI-SPARE PARTS & REPAIR ITEMS LIST */}
+                  <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-indigo-600" />
+                        <label className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                          Replaced Spare Parts & Filters ({sparePartsList.filter(p => p.name.trim() || p.price > 0).length})
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {totalSparePartsCharge > 0 && (
+                          <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                            Parts Total: {formatIndianCurrency(totalSparePartsCharge)}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleAddSparePart()}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Spare Part</span>
+                        </button>
                       </div>
                     </div>
 
-                    {/* 4. Spare Part Charges */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Spare Part Charges (₹)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={servicePartsCharge}
-                        onChange={(e) => setServicePartsCharge(Number(e.target.value) || 0)}
-                        placeholder="0"
-                        className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
-                      />
+                    {/* Quick suggestion chips */}
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold">Quick Add:</span>
+                      {COMMON_RO_SPARES.slice(0, 8).map((sp) => (
+                        <button
+                          type="button"
+                          key={sp.name}
+                          onClick={() => {
+                            const emptyItem = sparePartsList.find((p) => !p.name.trim() && p.price === 0);
+                            if (emptyItem) {
+                              handleUpdateSparePart(emptyItem.id, { name: sp.name, price: sp.price });
+                            } else {
+                              handleAddSparePart(sp.name, sp.price);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-md text-[9px] bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium transition cursor-pointer"
+                        >
+                          + {sp.name}
+                        </button>
+                      ))}
                     </div>
+
+                    {/* If no spare parts added yet */}
+                    {sparePartsList.length === 0 ? (
+                      <div className="p-3.5 bg-white/60 dark:bg-slate-800/40 rounded-xl border border-dashed border-indigo-200 dark:border-indigo-900/60 text-center">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          No spare parts added yet. Click <strong className="text-indigo-600 dark:text-indigo-400">"+ Add Spare Part"</strong> or a quick chip above if any filters or parts were replaced.
+                        </p>
+                      </div>
+                    ) : (
+                      /* Spare Parts Rows (Name & Price - NO quantity) */
+                      <div className="space-y-2.5">
+                        {sparePartsList.map((item, index) => (
+                          <div
+                            key={item.id}
+                            className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-indigo-200/80 dark:border-slate-700 shadow-xs space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-1.5">
+                              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-[10px] font-black">
+                                  {index + 1}
+                                </span>
+                                <span>Spare Part #{index + 1} {item.name ? `— ${item.name}` : ''}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSparePart(item.id)}
+                                className="flex items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 px-2 py-0.5 rounded-md transition cursor-pointer"
+                                title="Remove spare part"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Remove</span>
+                              </button>
+                            </div>
+
+                            {/* Dropdown Picker for Spare Part Name */}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                Choose Spare Part Name
+                              </label>
+                              <select
+                                value={COMMON_RO_SPARES.some((s) => s.name === item.name) ? item.name : ''}
+                                onChange={(e) => {
+                                  const selectedName = e.target.value;
+                                  if (selectedName) {
+                                    const matched = COMMON_RO_SPARES.find((s) => s.name === selectedName);
+                                    handleUpdateSparePart(item.id, {
+                                      name: selectedName,
+                                      price: matched ? matched.price : item.price,
+                                    });
+                                  }
+                                }}
+                                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+                              >
+                                <option value="">-- Select Spare Part from List (auto-fills price) --</option>
+                                {COMMON_RO_SPARES.map((s) => (
+                                  <option key={s.name} value={s.name}>
+                                    {s.name} — ₹{s.price}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Inputs: Spare Part Name & Price (NO Quantity) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                              <div className="sm:col-span-8">
+                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                  Spare Part Name (Editable / Custom) *
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Sediment Filter, Spun Candle, RO Membrane..."
+                                  value={item.name}
+                                  onChange={(e) => handleUpdateSparePart(item.id, { name: e.target.value })}
+                                  className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-4">
+                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                  Price (₹) *
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={item.price || ''}
+                                    onChange={(e) => handleUpdateSparePart(item.id, { price: Number(e.target.value) || 0 })}
+                                    className="w-full pl-6 pr-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-bold text-slate-900 dark:text-white"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Bottom Add button */}
+                    <button
+                      type="button"
+                      onClick={() => handleAddSparePart()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700/60 rounded-xl border border-indigo-200 dark:border-indigo-800 transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Another Spare Part</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -778,7 +1300,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                     <span>Next Service Interval Schedule</span>
                   </span>
                   <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                    Due: {computedNextDueDate}
+                    Due: {formatDateDDMMYYYY(computedNextDueDate)}
                   </span>
                 </div>
 
@@ -981,6 +1503,186 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                   </div>
                 )}
               </div>
+
+              {/* ========================================================= */}
+              {/* AUTOMATED WHATSAPP WELCOME / ONBOARDING MESSAGE SECTION */}
+              {/* ========================================================= */}
+              <div className="p-3.5 bg-gradient-to-br from-emerald-50 to-teal-50/60 dark:from-emerald-950/25 dark:to-teal-950/20 rounded-xl border border-emerald-200 dark:border-emerald-800/60 space-y-3">
+                {/* Header with Switch Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          Send WhatsApp Welcome Message
+                        </span>
+                        <span className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-extrabold px-1.5 py-0.2 rounded">
+                          AUTO
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                        Instant onboarding receipt & scheduled service reminder
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendWelcomeWhatsApp && !whatsappOptOut}
+                      disabled={whatsappOptOut}
+                      onChange={(e) => setSendWelcomeWhatsApp(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 shadow-xs"></div>
+                  </label>
+                </div>
+
+                {/* Sub-controls when enabled */}
+                {sendWelcomeWhatsApp && !whatsappOptOut && (
+                  <div className="space-y-2.5 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40">
+                    {/* Language Preference Tabs */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <Globe className="w-3 h-3 text-emerald-600" />
+                        Message Language:
+                      </span>
+                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-emerald-200/80 dark:border-emerald-800/60 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setWelcomeLanguage('bilingual')}
+                          className={`px-2 py-1 rounded-md transition ${
+                            welcomeLanguage === 'bilingual'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          Bilingual (తెలుగు + En)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWelcomeLanguage('te')}
+                          className={`px-2 py-1 rounded-md transition ${
+                            welcomeLanguage === 'te'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          తెలుగు
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWelcomeLanguage('en')}
+                          className={`px-2 py-1 rounded-md transition ${
+                            welcomeLanguage === 'en'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                          }`}
+                        >
+                          English
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Preview Toggle Header */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                        Live Preview ({mobileNumber ? `+91 ${mobileNumber}` : '+91 XXXXX XXXXX'}):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowWelcomePreview(!showWelcomePreview)}
+                        className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline inline-flex items-center gap-1"
+                      >
+                        {showWelcomePreview ? (
+                          <>
+                            <EyeOff className="w-3 h-3" /> Hide Preview
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3 h-3" /> Show Preview
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Live WhatsApp Bubble Preview */}
+                    {showWelcomePreview && (
+                      <div className="bg-[#e5ddd5] dark:bg-slate-900/90 p-3 rounded-xl border border-emerald-300/60 dark:border-emerald-800/80 shadow-inner">
+                        <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-black/5 dark:border-white/10 text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          <span>WhatsApp Cloud Service Desk • {business.name}</span>
+                        </div>
+
+                        {/* Speech Bubble */}
+                        <div className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 p-3 rounded-xl rounded-tl-xs shadow-xs text-xs space-y-1.5 leading-relaxed font-normal">
+                          <p className="whitespace-pre-wrap">{generateWelcomeMessage()}</p>
+                          <div className="flex items-center justify-end gap-1 text-[10px] text-slate-400 pt-1">
+                            <span>{format(new Date(), 'hh:mm a')}</span>
+                            <CheckCheck className="w-3.5 h-3.5 text-cyan-500" />
+                          </div>
+                        </div>
+
+                        {/* Custom message edit toggle */}
+                        <div className="mt-2 flex items-center justify-between text-[10px]">
+                          <span className="text-slate-500 dark:text-slate-400">
+                            Auto-fills Customer Name, RO Brand, TDS ({Math.round((parseInt(inletTds, 10) || 800) * 0.1)} ppm) & Due Date
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingWelcomeMsg(!isEditingWelcomeMsg)}
+                            className="font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                          >
+                            {isEditingWelcomeMsg ? 'Done Customizing' : '✏️ Edit Template Text'}
+                          </button>
+                        </div>
+
+                        {isEditingWelcomeMsg && (
+                          <div className="mt-2 animate-in fade-in">
+                            <textarea
+                              rows={3}
+                              value={customWelcomeNote || generateWelcomeMessage()}
+                              onChange={(e) => setCustomWelcomeNote(e.target.value)}
+                              placeholder="Type custom welcome message text..."
+                              className="w-full text-xs p-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                            {customWelcomeNote && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomWelcomeNote('')}
+                                className="text-[10px] text-rose-500 hover:underline mt-0.5"
+                              >
+                                Reset to Default Template
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* WhatsApp Opt-Out Checkbox */}
+                <div className="pt-1.5 border-t border-emerald-200/40 dark:border-emerald-800/30 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="whatsappOptOutCheck"
+                    checked={whatsappOptOut}
+                    onChange={(e) => {
+                      setWhatsappOptOut(e.target.checked);
+                      if (e.target.checked) setSendWelcomeWhatsApp(false);
+                    }}
+                    className="w-3.5 h-3.5 rounded text-rose-600 focus:ring-rose-500 border-slate-300 dark:border-slate-600"
+                  />
+                  <label htmlFor="whatsappOptOutCheck" className="text-[11px] text-slate-600 dark:text-slate-400 cursor-pointer">
+                    Customer requested WhatsApp Opt-Out (Do not send welcome message or reminder alerts)
+                  </label>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1018,13 +1720,25 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-1.5 px-6 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition"
-            >
-              <Check className="w-4 h-4" />
-              <span>Save & Onboard Customer</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block">Total Amount:</span>
+                <span className="text-xs font-black text-emerald-700 dark:text-emerald-400">
+                  {formatIndianCurrency(
+                    (isNewPurifierSale ? (Number(purifierPrice) || 0) : 0) +
+                    (Number(serviceLabourCharge) || 0) +
+                    totalSparePartsCharge
+                  )}
+                </span>
+              </div>
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save & Onboard Customer</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

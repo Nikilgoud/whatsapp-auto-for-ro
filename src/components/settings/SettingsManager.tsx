@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import {
   Settings,
@@ -18,6 +18,9 @@ import {
   Send,
   Upload,
   DollarSign,
+  Globe,
+  QrCode,
+  X,
 } from 'lucide-react';
 
 export const SettingsManager: React.FC = () => {
@@ -41,10 +44,120 @@ export const SettingsManager: React.FC = () => {
   const [tagline, setTagline] = useState(business.tagline || 'Never miss a service. Never lose a customer.');
   const [phone, setPhone] = useState(business.phone);
   const [whatsappNumber, setWhatsappNumber] = useState(business.whatsappNumber);
+  const [website, setWebsite] = useState(business.website || '');
+  const [paymentQrCodeUrl, setPaymentQrCodeUrl] = useState(business.paymentQrCodeUrl || '');
   const [address, setAddress] = useState(business.address);
   const [city, setCity] = useState(business.city);
   const [gstin, setGstin] = useState(business.settings.gstin || '');
   const [invoicePrefix, setInvoicePrefix] = useState(business.settings.invoicePrefix);
+
+  const qrFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [qrUploadSuccess, setQrUploadSuccess] = useState(false);
+
+  useEffect(() => {
+    if (business.paymentQrCodeUrl) {
+      setPaymentQrCodeUrl(business.paymentQrCodeUrl);
+    }
+  }, [business.paymentQrCodeUrl]);
+
+  const handleQrUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('QR Code image must be smaller than 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const rawDataUrl = uploadEvent.target?.result as string;
+
+      // Downscale to 450x450 canvas to keep size under 50KB for ultra-reliable storage & fast invoice printing
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 450;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+
+          // 1. Update component local state
+          setPaymentQrCodeUrl(compressedDataUrl);
+
+          // 2. Immediately update AppContext so it is active across all invoices right away!
+          updateBusinessProfile({ paymentQrCodeUrl: compressedDataUrl });
+
+          // 3. Persist to API
+          fetch('/api/update-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: businessName,
+              ownerName: ownerName.trim(),
+              tagline,
+              phone,
+              whatsappNumber,
+              website: website.trim(),
+              paymentQrCodeUrl: compressedDataUrl,
+              address,
+              city,
+            }),
+          }).catch(() => {});
+
+          setQrUploadSuccess(true);
+          setTimeout(() => setQrUploadSuccess(false), 3000);
+        } else {
+          setPaymentQrCodeUrl(rawDataUrl);
+          updateBusinessProfile({ paymentQrCodeUrl: rawDataUrl });
+        }
+      };
+      img.onerror = () => {
+        setPaymentQrCodeUrl(rawDataUrl);
+        updateBusinessProfile({ paymentQrCodeUrl: rawDataUrl });
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveQr = () => {
+    setPaymentQrCodeUrl('');
+    updateBusinessProfile({ paymentQrCodeUrl: '' });
+    fetch('/api/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: businessName,
+        ownerName: ownerName.trim(),
+        tagline,
+        phone,
+        whatsappNumber,
+        website: website.trim(),
+        paymentQrCodeUrl: '',
+        address,
+        city,
+      }),
+    }).catch(() => {});
+  };
 
   // Intervals
   const [defaultInterval, setDefaultInterval] = useState(business.settings.defaultServiceIntervalMonths);
@@ -77,6 +190,8 @@ export const SettingsManager: React.FC = () => {
       tagline,
       phone,
       whatsappNumber,
+      website: website.trim(),
+      paymentQrCodeUrl,
       address,
       city,
       gstin,
@@ -91,6 +206,8 @@ export const SettingsManager: React.FC = () => {
       tagline,
       phone,
       whatsappNumber,
+      website: website.trim(),
+      paymentQrCodeUrl,
       address,
       city,
     });
@@ -163,6 +280,8 @@ export const SettingsManager: React.FC = () => {
         tagline,
         phone,
         whatsappNumber,
+        website: website.trim(),
+        paymentQrCodeUrl,
         address,
         city,
         settings: {
@@ -298,6 +417,23 @@ export const SettingsManager: React.FC = () => {
               />
             </div>
 
+            <div>
+              <label className="block font-semibold mb-1 flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                <span>Business Website Link</span>
+              </label>
+              <input
+                type="text"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                placeholder="e.g. https://aquapurero.in or www.aquapurero.com"
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Automatically appended to customer WhatsApp messages, reminders, and product brochures alongside your business address.
+              </span>
+            </div>
+
             <div className="sm:col-span-2">
               <label className="block font-semibold mb-1">Shop / Service Center Address</label>
               <input
@@ -307,6 +443,103 @@ export const SettingsManager: React.FC = () => {
                 placeholder="Shop address shown on customer invoices & reminders"
                 className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
               />
+            </div>
+
+            {/* PAYMENT QR CODE (SCAN TO PAY ON INVOICES) */}
+            <div className="sm:col-span-2 pt-4 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div>
+                <label className="block font-bold text-xs text-slate-900 dark:text-white flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-emerald-600" />
+                  <span>Payment QR Code (Invoice Scan & Pay)</span>
+                </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Upload your UPI payment QR code photo (PhonePe, Google Pay, Paytm, or BHIM). This QR photo will appear directly on all customer invoices for seamless digital payments.
+                </p>
+              </div>
+
+              {/* Hidden File Input */}
+              <input
+                ref={qrFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleQrUpload}
+                className="hidden"
+              />
+
+              {paymentQrCodeUrl ? (
+                <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-28 h-28 bg-white p-2 rounded-xl border border-emerald-300 dark:border-emerald-700 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+                    <img
+                      src={paymentQrCodeUrl}
+                      alt="Uploaded Payment QR"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  <div className="flex-1 space-y-2 text-center sm:text-left">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <span className="px-2.5 py-0.5 bg-emerald-600 text-white font-bold text-[10px] rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Active on Invoices
+                      </span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        Shown on print & digital invoices
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                      Customers can scan this QR photo with any UPI app (GPay, PhonePe, Paytm, Cred) to settle service bills instantly.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1 justify-center sm:justify-start">
+                      <button
+                        type="button"
+                        onClick={() => qrFileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl border border-slate-300 dark:border-slate-600 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Change Photo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveQr}
+                        className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold text-xs rounded-xl border border-rose-200 dark:border-rose-800 transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Remove Photo</span>
+                      </button>
+                    </div>
+
+                    {qrUploadSuccess && (
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 animate-in fade-in duration-200">
+                        ✓ QR Code photo updated & active on all invoices!
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => qrFileInputRef.current?.click()}
+                  className="p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition text-center group"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <QrCode className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
+                      + Add Payment QR Code Photo
+                    </span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                      Click to upload your QR image (PNG, JPG, WebP up to 5MB)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs pointer-events-none"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload QR Photo</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

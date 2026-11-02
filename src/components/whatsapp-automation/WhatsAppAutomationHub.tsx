@@ -33,6 +33,10 @@ import {
   Video as VideoIcon,
   Paperclip,
   Megaphone,
+  Copy,
+  Check,
+  Globe,
+  Wrench,
 } from 'lucide-react';
 
 import {
@@ -41,9 +45,13 @@ import {
   formatPurifierProductForWhatsApp,
   generateWhatsAppLink,
   WHATSAPP_TEMPLATES,
+  appendBusinessFooter,
+  formatBusinessDetailsFooter,
+  interpolateTemplate,
+  TemplateCategory,
 } from '@/lib/services/whatsappEngine';
 import { PurifierProduct, LanguageCode, ChatMessage } from '@/types';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '@/lib/utils';
 
 export const WhatsAppAutomationHub: React.FC = () => {
   const {
@@ -88,8 +96,15 @@ export const WhatsAppAutomationHub: React.FC = () => {
 
   // Bulk Broadcast State
   const [manualBroadcastText, setManualBroadcastText] = useState(
-    `💧 *Special Service & Filter Checkup Alert!* 💧\n\nDear {{customerName}},\nGreetings from {{businessName}}! Ensure pure & healthy drinking water for your family. We are conducting free water TDS checkups and special filter replacement offers this week in your area.\n\nReply *YES* to book our certified technician slot!`
+    `💧 *Special Service & Filter Checkup Alert!* 💧\n\nDear {{customerName}},\nGreetings from {{businessName}}! Ensure pure & healthy drinking water for your family. We are conducting free water TDS checkups and special filter replacement offers this week in your area.\n\nReply *YES* to book our certified technician slot!\n\n—\n🏢 {{businessName}}\n📞 Phone: {{businessPhone}}\n📍 Address: {{businessAddress}}\n🌐 Website: {{businessWebsite}}`
   );
+
+  // Templates Hub State
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<'ALL' | TemplateCategory>('ALL');
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [templateActiveLanguages, setTemplateActiveLanguages] = useState<Record<string, LanguageCode>>({});
+  const [templateShowLivePreview, setTemplateShowLivePreview] = useState(true);
+  const [copiedTemplateKey, setCopiedTemplateKey] = useState<string | null>(null);
   const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'overdue' | 'due_soon' | 'amc_active'>('all');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [broadcastFeedback, setBroadcastFeedback] = useState<string | null>(null);
@@ -770,6 +785,9 @@ export const WhatsAppAutomationHub: React.FC = () => {
                 {[
                   { tag: '{{customerName}}', label: 'Customer Name' },
                   { tag: '{{businessName}}', label: 'Business Name' },
+                  { tag: '{{businessPhone}}', label: 'Business Phone' },
+                  { tag: '{{businessAddress}}', label: 'Business Address' },
+                  { tag: '{{businessWebsite}}', label: 'Website Link' },
                   { tag: '{{phone}}', label: 'Phone' },
                   { tag: '{{purifierBrand}}', label: 'RO Brand' },
                   { tag: '{{dueDate}}', label: 'Due Date' },
@@ -948,12 +966,21 @@ export const WhatsAppAutomationHub: React.FC = () => {
                   )}
 
                   <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
-                    {manualBroadcastText
-                      .replace(/\{\{customerName\}\}/g, 'Rajesh Kumar')
-                      .replace(/\{\{businessName\}\}/g, business.name)
-                      .replace(/\{\{phone\}\}/g, '9849012345')
-                      .replace(/\{\{purifierBrand\}\}/g, 'Kent Grand+')
-                      .replace(/\{\{dueDate\}\}/g, '15 Nov 2026')}
+                    {appendBusinessFooter(
+                      manualBroadcastText
+                        .replace(/\{\{customerName\}\}/g, 'Rajesh Kumar')
+                        .replace(/\{\{businessName\}\}/g, business.name)
+                        .replace(/\{\{businessPhone\}\}/g, business.phone)
+                        .replace(
+                          /\{\{businessAddress\}\}/g,
+                          `${business.address}, ${business.city}, ${business.state} ${business.pincode}`
+                        )
+                        .replace(/\{\{businessWebsite\}\}/g, business.website || '')
+                        .replace(/\{\{phone\}\}/g, '9849012345')
+                        .replace(/\{\{purifierBrand\}\}/g, 'Kent Grand+')
+                        .replace(/\{\{dueDate\}\}/g, '15/11/2026'),
+                      business
+                    )}
                   </p>
                   <span className="block text-[9px] text-right text-slate-400">
                     10:30 AM ✓✓
@@ -1055,29 +1082,252 @@ export const WhatsAppAutomationHub: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: TEMPLATES */}
+      {/* TAB 5: TEMPLATES HUB */}
       {activeTab === 'templates' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {Object.entries(WHATSAPP_TEMPLATES).map(([key, tpl]) => (
-            <div
-              key={key}
-              className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 rounded-md">
-                  {key}
-                </span>
-                <span className="text-[10px] text-slate-400">4 Languages</span>
+        <div className="space-y-6">
+          {/* Header Controls & Filter Bar */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-emerald-600" />
+                  <span>WhatsApp Template Library & Multi-Language Hub</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  12 pre-approved templates in English, Telugu, Hindi, and Hinglish with automatic business address & website footer.
+                </p>
               </div>
 
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm">{tpl.name}</h4>
-              <p className="text-xs text-slate-500">{tpl.description}</p>
-
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                {tpl.languages.en}
+              {/* Live Preview Toggle */}
+              <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 px-2">
+                  {templateShowLivePreview ? 'Live Business Preview' : 'Raw {{tags}} Mode'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTemplateShowLivePreview((prev) => !prev)}
+                  className={`px-3 py-1 text-xs font-bold rounded-xl transition ${
+                    templateShowLivePreview
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  {templateShowLivePreview ? 'Live Active' : 'Switch to Live'}
+                </button>
               </div>
             </div>
-          ))}
+
+            {/* Search & Category Filter Pills */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              {/* Category Pills */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { id: 'ALL', label: 'All Templates' },
+                  { id: 'SERVICE_REMINDERS', label: 'Service Reminders' },
+                  { id: 'OPERATIONS', label: 'Operations & Dispatch' },
+                  { id: 'BILLING_AMC', label: 'Billing & AMC' },
+                  { id: 'MARKETING', label: 'Promotions & Care' },
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setTemplateCategoryFilter(cat.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      templateCategoryFilter === cat.id
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <div className="relative min-w-[220px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={templateSearchQuery}
+                  onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                  placeholder="Search templates..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Templates Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {Object.entries(WHATSAPP_TEMPLATES)
+              .filter(([key, tpl]) => {
+                const matchesCategory =
+                  templateCategoryFilter === 'ALL' || tpl.category === templateCategoryFilter;
+                const matchesSearch =
+                  !templateSearchQuery.trim() ||
+                  key.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
+                  tpl.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
+                  tpl.description.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
+                  Object.values(tpl.languages).some((txt) =>
+                    txt.toLowerCase().includes(templateSearchQuery.toLowerCase())
+                  );
+                return matchesCategory && matchesSearch;
+              })
+              .map(([key, tpl]) => {
+                const currentLang: LanguageCode = templateActiveLanguages[key] || 'en';
+                const rawText = tpl.languages[currentLang] || tpl.languages.en;
+
+                const displayedText = templateShowLivePreview
+                  ? interpolateTemplate(rawText, {
+                      customerName: 'Rajesh Kumar',
+                      purifierBrand: 'Kent Grand+',
+                      purifierModel: 'Alkaline RO',
+                      dueDate: '15/11/2026',
+                      businessName: business.name,
+                      ownerName: business.ownerName || 'Service Desk',
+                      businessAddress: `${business.address}, ${business.city}`,
+                      businessPhone: business.phone,
+                      businessWebsite: business.website,
+                      technicianName: 'Suresh Kumar',
+                      scheduledDate: 'Tomorrow',
+                      scheduledTime: '11:00 AM',
+                      amount: 650,
+                    })
+                  : rawText;
+
+                const isCopied = copiedTemplateKey === key;
+
+                return (
+                  <div
+                    key={key}
+                    className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between gap-4"
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 rounded-md">
+                            {key}
+                          </span>
+                          <span
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${
+                              tpl.category === 'SERVICE_REMINDERS'
+                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                : tpl.category === 'OPERATIONS'
+                                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                                : tpl.category === 'BILLING_AMC'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
+                            }`}
+                          >
+                            {tpl.category.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {/* Language Selector on Card */}
+                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          {(['en', 'te', 'hi', 'hinglish'] as LanguageCode[]).map((l) => (
+                            <button
+                              key={l}
+                              type="button"
+                              onClick={() =>
+                                setTemplateActiveLanguages((prev) => ({ ...prev, [key]: l }))
+                              }
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase transition ${
+                                currentLang === l
+                                  ? 'bg-blue-600 text-white shadow-2xs'
+                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                              }`}
+                              title={`Switch to ${l.toUpperCase()}`}
+                            >
+                              {l === 'hinglish' ? 'Hing' : l}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Title & Description */}
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                          {tpl.name}
+                        </h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          {tpl.description}
+                        </p>
+                      </div>
+
+                      {/* WhatsApp Bubble Preview */}
+                      <div className="bg-[#e5ddd5] dark:bg-[#0b141a] p-3.5 rounded-2xl text-xs space-y-1.5 shadow-inner">
+                        <div className="bg-white dark:bg-[#202c33] text-slate-900 dark:text-slate-100 p-3 rounded-2xl rounded-tl-none shadow-xs space-y-2">
+                          <p className="text-[11px] leading-relaxed whitespace-pre-wrap font-sans">
+                            {displayedText}
+                          </p>
+                          <span className="block text-[9px] text-right text-slate-400">
+                            10:30 AM ✓✓
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(displayedText);
+                            setCopiedTemplateKey(key);
+                            setTimeout(() => setCopiedTemplateKey(null), 2000);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-600 font-bold">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Text</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManualBroadcastText(rawText);
+                            setActiveTab('broadcast');
+                          }}
+                          className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Load this template into Bulk Broadcast"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Use in Broadcast</span>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = generateWhatsAppLink(
+                            business.phone || business.whatsappNumber || '',
+                            displayedText
+                          );
+                          window.open(url, '_blank');
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                        title="Open in WhatsApp click-to-chat"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Test Send</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
       )}
 
@@ -1110,7 +1360,7 @@ export const WhatsAppAutomationHub: React.FC = () => {
                     {broadcastLogs.map((bc) => (
                       <tr key={bc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                         <td className="p-3 text-slate-500 text-[11px] whitespace-nowrap">
-                          {bc.sentAt ? new Date(bc.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                          {bc.sentAt ? formatDateTimeDDMMYYYY(bc.sentAt) : 'Recent'}
                         </td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-semibold text-[10px] uppercase">
@@ -1199,7 +1449,7 @@ export const WhatsAppAutomationHub: React.FC = () => {
                           <span className="truncate">{log.messageText}</span>
                         </td>
                         <td className="p-3 text-slate-400 text-[11px] whitespace-nowrap">
-                          {log.sentAt ? new Date(log.sentAt).toLocaleDateString() : 'Today'}
+                          {log.sentAt ? formatDateTimeDDMMYYYY(log.sentAt) : 'Today'}
                         </td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold rounded-full text-[10px]">

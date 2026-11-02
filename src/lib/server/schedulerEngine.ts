@@ -77,6 +77,7 @@ export function generateReminderIdempotencyKey(
 
 /**
  * Core Autonomous Server-Side Scheduler Run
+ * Uses the normalized production schema tables (businesses, renewals, customers, purifiers)
  */
 export async function runAutonomousReminderEngine(
   businessId?: string,
@@ -98,7 +99,8 @@ export async function runAutonomousReminderEngine(
   }
 
   // 2. Fetch businesses to process
-  let businessQuery = supabaseAdmin.from('businesses').select('id, name, business_phone, timezone');
+  // Production schema uses 'phone' not 'business_phone', and 'timezone' column
+  let businessQuery = supabaseAdmin.from('businesses').select('id, name, phone, timezone');
   if (businessId) {
     businessQuery = businessQuery.eq('id', businessId);
   }
@@ -117,23 +119,24 @@ export async function runAutonomousReminderEngine(
   let totalQueued = 0;
 
   for (const business of businesses) {
-    // Fetch active renewals and associated customer info
+    // Fetch active renewals and associated customer info using production schema column names
+    // renewals.next_due_date, renewals.estimated_value, customers.full_name, customers.mobile_number, customers.whatsapp_opt_out
     const { data: renewals, error: renError } = await supabaseAdmin
       .from('renewals')
       .select(`
         id,
-        due_date,
+        next_due_date,
         renewal_type,
-        plan_amount,
+        estimated_value,
         customer_id,
         purifier_id,
         status,
         customers!inner (
           id,
-          name,
-          phone,
+          full_name,
+          mobile_number,
           language_preference,
-          opt_out_whatsapp
+          whatsapp_opt_out
         ),
         purifiers (
           brand,
@@ -144,6 +147,7 @@ export async function runAutonomousReminderEngine(
       .in('status', ['PENDING', 'OVERDUE']);
 
     if (renError || !renewals) {
+      console.warn(`Renewals query error for business ${business.id}:`, renError?.message);
       continue;
     }
 
@@ -153,11 +157,11 @@ export async function runAutonomousReminderEngine(
     for (const renewal of renewals) {
       totalEvaluated++;
       const customer = renewal.customers as any;
-      if (!customer || customer.opt_out_whatsapp) {
+      if (!customer || customer.whatsapp_opt_out) {
         continue;
       }
 
-      const dueDate = new Date(renewal.due_date);
+      const dueDate = new Date(renewal.next_due_date);
       dueDate.setHours(0, 0, 0, 0);
 
       // Exact day calculation
@@ -175,7 +179,7 @@ export async function runAutonomousReminderEngine(
         customer.id,
         renewal.id,
         matchedStage.id,
-        renewal.due_date
+        renewal.next_due_date
       );
 
       const purifier = (renewal.purifiers as any) || { brand: 'RO Purifier', model: 'Standard' };
@@ -184,22 +188,22 @@ export async function runAutonomousReminderEngine(
       // Enqueue job with idempotency key
       const enqueueRes = await enqueueMessageJob({
         businessId: business.id,
-        recipientPhone: customer.phone,
+        recipientPhone: customer.mobile_number,
         jobType: 'REMINDER',
         idempotencyKey,
         payload: {
           businessId: business.id,
-          recipientPhone: customer.phone,
+          recipientPhone: customer.mobile_number,
           customerId: customer.id,
           renewalId: renewal.id,
           templateName: matchedStage.templateName,
           languageCode: customerLang,
           parameters: [
-            customer.name,
+            customer.full_name,
             `${purifier.brand} ${purifier.model}`,
-            renewal.due_date,
-            `₹${renewal.plan_amount || 1500}`,
-            business.business_phone || 'Customer Support',
+            renewal.next_due_date,
+            `₹${renewal.estimated_value || 1500}`,
+            business.phone || 'Customer Support',
           ],
         },
       });

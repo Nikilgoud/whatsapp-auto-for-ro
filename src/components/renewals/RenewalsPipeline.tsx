@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Renewal, RenewalStage, Customer, Purifier } from '@/types';
 import { getUrgencyBadgeConfig } from '@/lib/services/dueCalculator';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
 import {
   Search,
@@ -154,7 +154,7 @@ export const RenewalsPipeline: React.FC<RenewalsPipelineProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Due Date & Est.</span>
                     <span className="font-bold text-slate-900 dark:text-white block">
-                      {rnw.nextDueDate}
+                      {formatDateDDMMYYYY(rnw.nextDueDate)}
                     </span>
                     <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block">
                       {formatIndianCurrency(rnw.estimatedValue)}
@@ -260,7 +260,7 @@ export const RenewalsPipeline: React.FC<RenewalsPipelineProps> = ({
                         {purifier?.brand} {purifier?.model}
                       </td>
                       <td className="py-3.5 px-4 font-medium text-slate-700 dark:text-slate-300">
-                        {rnw.nextDueDate}
+                        {formatDateDDMMYYYY(rnw.nextDueDate)}
                       </td>
                       <td className="py-3.5 px-4">
                         <span

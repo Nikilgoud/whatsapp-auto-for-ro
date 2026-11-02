@@ -5,7 +5,7 @@ import { useApp } from '@/context/AppContext';
 import { Customer, Purifier } from '@/types';
 import { Customer360Modal } from './Customer360Modal';
 import { WhatsAppModal } from '@/components/ui/WhatsAppModal';
-import { formatIndianCurrency } from '@/lib/utils';
+import { formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
 import {
   Search,
   Plus,
@@ -87,18 +87,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         <div className="flex items-center gap-2.5">
           <button
             onClick={onOpenImport}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-700 transition"
+            className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 rounded-xl border border-emerald-300 dark:border-emerald-800 transition shadow-2xs hover:shadow-xs cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Import CSV</span>
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>📥 Import Customers via Excel</span>
           </button>
 
           <button
             onClick={onOpenAddCustomer}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Customer</span>
+            <span>+ Add Customer</span>
           </button>
         </div>
       </div>
@@ -198,7 +198,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Purifier</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
-                      {customerPurifier ? `${customerPurifier.brand} ${customerPurifier.model}` : 'RO Purifier'}
+                      {customerPurifier ? `${customerPurifier.brand}${customerPurifier.model ? ` ${customerPurifier.model}` : ''}` : 'RO Purifier'}
                     </span>
                     <div className="flex flex-wrap gap-1 mt-0.5">
                       {hasUnitWarranty && (
@@ -217,7 +217,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                   <div>
                     <span className="text-[10px] text-slate-400 block uppercase font-semibold">Service Due</span>
                     <span className="font-bold text-blue-600 dark:text-blue-400 block">
-                      {customerPurifier?.nextServiceDueDate || 'N/A'}
+                      {formatDateDDMMYYYY(customerPurifier?.nextServiceDueDate, 'N/A')}
                     </span>
                     <span className="text-[10px] text-slate-500 block truncate">
                       📍 {cust.areaLocality}
@@ -368,10 +368,10 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
                       <td className="py-3.5 px-4">
                         <p className="font-bold text-slate-800 dark:text-slate-200">
-                          Due: <span className="text-blue-600 dark:text-blue-400">{customerPurifier?.nextServiceDueDate || 'N/A'}</span>
+                          Due: <span className="text-blue-600 dark:text-blue-400">{formatDateDDMMYYYY(customerPurifier?.nextServiceDueDate, 'N/A')}</span>
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          Last: {customerPurifier?.lastServiceDate ? customerPurifier.lastServiceDate : 'Never'}
+                          Last: {customerPurifier?.lastServiceDate ? formatDateDDMMYYYY(customerPurifier.lastServiceDate) : 'Never'}
                         </p>
                       </td>
 
