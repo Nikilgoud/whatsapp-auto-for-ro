@@ -161,13 +161,13 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
                       setLang(l);
                       switchLanguage(l);
                     }}
-                    className={`py-1.5 text-xs font-medium rounded-md uppercase transition ${
+                    className={`py-1.5 text-xs font-semibold rounded-md transition ${
                       lang === l
-                        ? 'bg-emerald-600 text-white shadow-xs font-semibold'
+                        ? 'bg-emerald-600 text-white shadow-xs font-bold'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    {l === 'hinglish' ? 'Hing' : l}
+                    {l === 'te' ? 'తెలుగు' : l === 'hi' ? 'हिन्दी' : l === 'en' ? 'English' : 'Hinglish'}
                   </button>
                 ))}
               </div>

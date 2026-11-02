@@ -69,6 +69,7 @@ export const WhatsAppAutomationHub: React.FC = () => {
     broadcastToAllCustomers,
     broadcastLogs,
     communications,
+    selectedLanguage,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'chatbot' | 'catalog' | 'broadcast' | 'reminders' | 'templates' | 'logs'>('chatbot');
@@ -1174,8 +1175,8 @@ export const WhatsAppAutomationHub: React.FC = () => {
                 return matchesCategory && matchesSearch;
               })
               .map(([key, tpl]) => {
-                const currentLang: LanguageCode = templateActiveLanguages[key] || 'en';
-                const rawText = tpl.languages[currentLang] || tpl.languages.en;
+                const currentLang: LanguageCode = templateActiveLanguages[key] || selectedLanguage || 'te';
+                const rawText = tpl.languages[currentLang] || tpl.languages.te || tpl.languages.en;
 
                 const displayedText = templateShowLivePreview
                   ? interpolateTemplate(rawText, {
@@ -1240,7 +1241,7 @@ export const WhatsAppAutomationHub: React.FC = () => {
                               }`}
                               title={`Switch to ${l.toUpperCase()}`}
                             >
-                              {l === 'hinglish' ? 'Hing' : l}
+                              {l === 'te' ? 'తెలుగు' : l === 'hi' ? 'హిందీ' : l === 'en' ? 'EN' : 'Hing'}
                             </button>
                           ))}
                         </div>
