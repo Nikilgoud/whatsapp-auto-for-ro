@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   UserCheck,
   LogOut,
+  Languages,
 } from 'lucide-react';
 import { AuthModal } from '@/components/auth/AuthModal';
 import { LogoutConfirmModal } from '@/components/auth/LogoutConfirmModal';
@@ -45,6 +46,8 @@ export const TopNav: React.FC<TopNavProps> = ({
     inventory,
     cloudSyncStatus,
     logoutOwner,
+    selectedLanguage,
+    switchLanguage,
   } = useApp();
 
   const overdueCount = renewals.filter((r) => r.daysRemaining <= 0 && r.status === 'PENDING').length;
@@ -120,6 +123,44 @@ export const TopNav: React.FC<TopNavProps> = ({
             {cloudSyncStatus === 'needs_table' && 'Run SQL Schema'}
             {cloudSyncStatus === 'offline' && 'Offline'}
           </span>
+        </div>
+
+        {/* Quick Language Switcher: Telugu (తెలుగు) / English / Hindi */}
+        <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+          <Languages className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400 ml-1 hidden xs:inline" />
+          <button
+            onClick={() => switchLanguage('te')}
+            className={`px-2 py-0.5 rounded-lg font-bold text-[11px] transition ${
+              selectedLanguage === 'te'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+            title="తెలుగులో వాట్సాప్ రిమైండర్‌లు (Telugu)"
+          >
+            తెలుగు
+          </button>
+          <button
+            onClick={() => switchLanguage('en')}
+            className={`px-1.5 py-0.5 rounded-lg font-bold text-[11px] transition ${
+              selectedLanguage === 'en'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+            title="English WhatsApp Reminders"
+          >
+            EN
+          </button>
+          <button
+            onClick={() => switchLanguage('hi')}
+            className={`px-1.5 py-0.5 rounded-lg font-bold text-[11px] transition ${
+              selectedLanguage === 'hi'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+            title="हिन्दी WhatsApp Reminders"
+          >
+            HI
+          </button>
         </div>
 
         {/* Quick Actions Buttons */}

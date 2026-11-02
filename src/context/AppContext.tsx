@@ -184,7 +184,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [business, setBusiness] = useState<Business>(INITIAL_BUSINESS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User>(INITIAL_USERS[0]);
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('te');
 
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [purifiers, setPurifiers] = useState<Purifier[]>(INITIAL_PURIFIERS);
