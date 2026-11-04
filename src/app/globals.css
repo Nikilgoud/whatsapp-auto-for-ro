@@ -80,3 +80,12 @@ body {
   }
 }
 
+/* Prevent iOS Safari / Android auto-zoom on input focus while keeping UI compact */
+@media screen and (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+

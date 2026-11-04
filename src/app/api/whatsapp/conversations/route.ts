@@ -46,11 +46,17 @@ export async function GET(req: NextRequest) {
               mediaUrl: msg.media_url,
               mediaType: msg.media_type,
               unreadCount: msg.direction === 'INBOUND' && msg.status !== 'READ' ? 1 : 0,
+              lastInboundTime: msg.direction === 'INBOUND' ? (msg.created_at || msg.sent_at) : null,
             });
           } else {
             const existing = convMap.get(key);
-            if (msg.direction === 'INBOUND' && msg.status !== 'READ') {
-              existing.unreadCount = (existing.unreadCount || 0) + 1;
+            if (msg.direction === 'INBOUND') {
+              if (msg.status !== 'READ') {
+                existing.unreadCount = (existing.unreadCount || 0) + 1;
+              }
+              if (!existing.lastInboundTime) {
+                existing.lastInboundTime = msg.created_at || msg.sent_at;
+              }
             }
           }
         }
@@ -102,6 +108,7 @@ export async function GET(req: NextRequest) {
               lastMessageDirection: entry.lastMessageDirection,
               lastMessageStatus: entry.lastMessageStatus,
               lastMessageTime: entry.lastMessageTime,
+              lastInboundTime: entry.lastInboundTime || null,
               mediaUrl: entry.mediaUrl,
               mediaType: entry.mediaType,
             };

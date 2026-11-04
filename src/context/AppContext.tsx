@@ -46,28 +46,13 @@ import {
   INITIAL_BROADCAST_LOGS,
 } from '@/lib/storage/mockDb';
 import {
-  DEMO_BUSINESS,
-  DEMO_CUSTOMERS,
-  DEMO_PURIFIERS,
-  DEMO_RENEWALS,
-  DEMO_SERVICES,
-  DEMO_TECHNICIANS,
-  DEMO_INVOICES,
-  DEMO_PURIFIER_PRODUCTS,
-  SR_WATER_CUSTOMERS,
-  SR_WATER_PURIFIERS,
-  SR_WATER_SERVICES,
-  SR_WATER_RENEWALS,
-  SR_WATER_INVOICES,
-} from '@/lib/storage/demoData';
-import {
   calculateNextPurifierServiceDue,
   createRenewalFromService,
   calculateUrgency,
   getDaysRemaining,
 } from '@/lib/services/dueCalculator';
 import { appendBusinessFooter } from '@/lib/services/whatsappEngine';
-import { formatDateDDMMYYYY } from '@/lib/utils';
+import { formatDateDDMMYYYY, generateInvoiceSerialNumber, generateCustomerCode } from '@/lib/utils';
 import { format, addMonths } from 'date-fns';
 
 interface AppContextType {
@@ -143,6 +128,9 @@ interface AppContextType {
     machineSerialNo?: string;
     deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
     installationDate?: string;
+    warrantyExpiry?: string;
+    sparePartsWarrantyExpiry?: string;
+    sparePartsWarrantyNotes?: string;
     technicianId?: string;
     items: InvoiceItem[];
     subtotal: number;
@@ -163,6 +151,7 @@ interface AppContextType {
   runAutomatedRemindersNow: () => { sent: number; skipped: number; logs: string[] };
   broadcastToAllCustomers: (manualText: string, targetFilter: string, media?: { url: string; type: 'image' | 'video' }) => Promise<{ sent: number; logs: string[] }>;
   resetDemoData: () => void;
+  clearDummyData: () => void;
 
   syncWithCloud: () => Promise<void>;
   lastCloudSyncTime: string | null;
@@ -179,12 +168,50 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'ro_renewal_engine_prod_v2';
 
+export const isDummyCustomer = (c: any): boolean => {
+  if (!c) return true;
+  if (typeof c.id === 'string' && (c.id.startsWith('cust-sr-') || /^cust-[0-9]+$/.test(c.id))) return true;
+  if (c.customerCode === 'CUST-1001' || c.customerCode === 'CUST-SR-01' || c.customerCode?.startsWith('CUST-SR-')) return true;
+  if (
+    (c.fullName === 'Sunil' && c.mobileNumber === '8106379272') ||
+    (c.fullName === 'Thirupathi' && c.mobileNumber === '8712524622') ||
+    (c.fullName === 'Rajesh Kumar' && c.mobileNumber === '9849012345')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+export const isDummyPurifier = (p: any): boolean => {
+  if (!p) return true;
+  if (typeof p.id === 'string' && (p.id.startsWith('pur-sr-') || /^pur-[0-9]+$/.test(p.id))) return true;
+  return false;
+};
+
+export const isDummyService = (s: any): boolean => {
+  if (!s) return true;
+  if (typeof s.id === 'string' && (s.id.startsWith('srv-sr-') || /^srv-[0-9]+$/.test(s.id))) return true;
+  return false;
+};
+
+export const isDummyRenewal = (r: any): boolean => {
+  if (!r) return true;
+  if (typeof r.id === 'string' && (r.id.startsWith('ren-sr-') || /^ren-[0-9]+$/.test(r.id))) return true;
+  return false;
+};
+
+export const isDummyInvoice = (i: any): boolean => {
+  if (!i) return true;
+  if (typeof i.id === 'string' && (i.id.startsWith('inv-sr-') || /^inv-[0-9]+$/.test(i.id))) return true;
+  return false;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mounted, setMounted] = useState(false);
   const [business, setBusiness] = useState<Business>(INITIAL_BUSINESS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [currentUser, setCurrentUser] = useState<User>(INITIAL_USERS[0]);
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('te');
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>('en');
 
   const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
   const [purifiers, setPurifiers] = useState<Purifier[]>(INITIAL_PURIFIERS);
@@ -201,7 +228,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [autoReminderConfig, setAutoReminderConfig] = useState<AutoReminderConfig>(INITIAL_AUTO_REMINDER_CONFIG);
   const [broadcastLogs, setBroadcastLogs] = useState<BroadcastLog[]>(INITIAL_BROADCAST_LOGS);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [unreadWhatsAppCount, setUnreadWhatsAppCount] = useState<number>(3);
+  const [unreadWhatsAppCount, setUnreadWhatsAppCount] = useState<number>(0);
 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<
     'synced' | 'syncing' | 'offline' | 'needs_table' | 'local_sandbox'
@@ -265,17 +292,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data && data.data) {
         const cloud = data.data;
         isRemoteUpdateRef.current = true;
-        if (Array.isArray(cloud.customers)) setCustomers(cloud.customers);
-        if (Array.isArray(cloud.purifiers)) setPurifiers(cloud.purifiers);
-        if (Array.isArray(cloud.renewals)) setRenewals(cloud.renewals);
-        if (Array.isArray(cloud.services)) setServices(cloud.services);
+        const cleanCustomers = (cloud.customers || []).filter((c: any) => !isDummyCustomer(c));
+        const validCustIds = new Set(cleanCustomers.map((c: any) => c.id));
+        const cleanPurifiers = (cloud.purifiers || []).filter((p: any) => validCustIds.has(p.customerId) && !isDummyPurifier(p));
+        const cleanServices = (cloud.services || []).filter((s: any) => validCustIds.has(s.customerId) && !isDummyService(s));
+        const cleanRenewals = (cloud.renewals || []).filter((r: any) => validCustIds.has(r.customerId) && !isDummyRenewal(r));
+
+        setCustomers(cleanCustomers);
+        setPurifiers(cleanPurifiers);
+        setRenewals(cleanRenewals);
+        setServices(cleanServices);
         if (Array.isArray(cloud.technicians)) setTechnicians(cloud.technicians);
         if (Array.isArray(cloud.inventory)) setInventory(cloud.inventory);
         
         let activeInvoices = Array.isArray(cloud.invoices) ? cloud.invoices : [];
-        if (Array.isArray(cloud.services)) {
+        if (cleanServices.length > 0) {
           const existingServiceIds = new Set(activeInvoices.map((inv: any) => inv.serviceRecordId));
-          const missingInvoices = cloud.services
+          const missingInvoices = cleanServices
             .filter((srv: any) => srv.status === 'Completed' && !existingServiceIds.has(srv.id))
             .map((srv: any, idx: number) => {
               const partsSum = (srv.partsUsed || []).reduce((sum: number, p: any) => sum + (p.totalPrice || p.quantity * p.unitPrice || 0), 0);
@@ -285,7 +318,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return {
                 id: `inv-${Date.now()}-${idx}`,
                 businessId: srv.businessId || 'biz-client-ro',
-                invoiceNumber: `AQ-RO-${Math.floor(1000 + Math.random() * 9000)}`,
+                invoiceNumber: generateInvoiceSerialNumber(activeInvoices, srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt, cloud.business?.settings?.invoicePrefix),
                 customerId: srv.customerId,
                 serviceRecordId: srv.id,
                 invoiceDate: srv.scheduledDate || srv.completedTime?.split(' ')[0] || srv.createdAt,
@@ -321,7 +354,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             activeInvoices = [...missingInvoices, ...activeInvoices];
           }
         }
-        setInvoices(activeInvoices);
+        const cleanInvoices = activeInvoices.filter((inv: any) => validCustIds.has(inv.customerId) && !isDummyInvoice(inv));
+        setInvoices(cleanInvoices);
         if (Array.isArray(cloud.amcSubscriptions)) setAmcSubscriptions(cloud.amcSubscriptions);
         if (Array.isArray(cloud.purifierProducts)) setPurifierProducts(cloud.purifierProducts);
         if (cloud.autoReminderConfig) setAutoReminderConfig(cloud.autoReminderConfig);
@@ -358,56 +392,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const saved = localStorage.getItem('ro_local_sandbox_v1');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (parsed.customers && parsed.customers.length > 0) {
-            const existingPhones = new Set((parsed.customers || []).map((c: any) => c.mobileNumber));
-            const missingCustomers = SR_WATER_CUSTOMERS.filter((c) => !existingPhones.has(c.mobileNumber));
-            const missingCustIds = new Set(missingCustomers.map((c) => c.id));
-            const missingPurifiers = SR_WATER_PURIFIERS.filter((p) => missingCustIds.has(p.customerId));
-            const missingServices = SR_WATER_SERVICES.filter((s) => missingCustIds.has(s.customerId));
-            const missingRenewals = SR_WATER_RENEWALS.filter((r) => missingCustIds.has(r.customerId));
-            const missingInvoices = SR_WATER_INVOICES.filter((i) => missingCustIds.has(i.customerId));
+          const cleanCustomers = (parsed.customers || []).filter((c: any) => !isDummyCustomer(c));
+          const validCustIds = new Set(cleanCustomers.map((c: any) => c.id));
+          const cleanPurifiers = (parsed.purifiers || []).filter((p: any) => validCustIds.has(p.customerId) && !isDummyPurifier(p));
+          const cleanRenewals = (parsed.renewals || []).filter((r: any) => validCustIds.has(r.customerId) && !isDummyRenewal(r));
+          const cleanServices = (parsed.services || []).filter((s: any) => validCustIds.has(s.customerId) && !isDummyService(s));
+          const cleanInvoices = (parsed.invoices || []).filter((i: any) => validCustIds.has(i.customerId) && !isDummyInvoice(i));
 
-            setCustomers([...missingCustomers, ...parsed.customers]);
-            setPurifiers([...missingPurifiers, ...(parsed.purifiers || [])]);
-            setRenewals([...missingRenewals, ...(parsed.renewals || [])]);
-            setServices([...missingServices, ...(parsed.services || [])]);
-            setTechnicians(parsed.technicians || []);
-            setInventory(parsed.inventory || []);
-            setInvoices([...missingInvoices, ...(parsed.invoices || [])]);
-            setAmcSubscriptions(parsed.amcSubscriptions || []);
-            setPurifierProducts(parsed.purifierProducts || DEMO_PURIFIER_PRODUCTS);
-            setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
-            setBroadcastLogs(parsed.broadcastLogs || []);
-            if (parsed.business) setBusiness(parsed.business);
-          } else {
-            setCustomers(DEMO_CUSTOMERS);
-            setPurifiers(DEMO_PURIFIERS);
-            setRenewals(DEMO_RENEWALS);
-            setServices(DEMO_SERVICES);
-            setTechnicians(DEMO_TECHNICIANS);
-            setInvoices(DEMO_INVOICES);
-            setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
-            setBusiness(DEMO_BUSINESS);
-          }
+          setCustomers(cleanCustomers);
+          setPurifiers(cleanPurifiers);
+          setRenewals(cleanRenewals);
+          setServices(cleanServices);
+          setTechnicians(parsed.technicians || []);
+          setInventory(parsed.inventory || []);
+          setInvoices(cleanInvoices);
+          setAmcSubscriptions(parsed.amcSubscriptions || []);
+          setPurifierProducts(parsed.purifierProducts || INITIAL_PURIFIER_PRODUCTS);
+          setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
+          setBroadcastLogs(parsed.broadcastLogs || []);
+          if (parsed.business) setBusiness(parsed.business);
         } else {
-          setCustomers(DEMO_CUSTOMERS);
-          setPurifiers(DEMO_PURIFIERS);
-          setRenewals(DEMO_RENEWALS);
-          setServices(DEMO_SERVICES);
-          setTechnicians(DEMO_TECHNICIANS);
-          setInvoices(DEMO_INVOICES);
-          setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
-          setBusiness(DEMO_BUSINESS);
+          setCustomers([]);
+          setPurifiers([]);
+          setRenewals([]);
+          setServices([]);
+          setTechnicians([]);
+          setInvoices([]);
+          setAmcSubscriptions([]);
+          setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
+          setBusiness(INITIAL_BUSINESS);
         }
       } catch {
-        setCustomers(DEMO_CUSTOMERS);
-        setPurifiers(DEMO_PURIFIERS);
-        setRenewals(DEMO_RENEWALS);
-        setServices(DEMO_SERVICES);
-        setTechnicians(DEMO_TECHNICIANS);
-        setInvoices(DEMO_INVOICES);
-        setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
-        setBusiness(DEMO_BUSINESS);
+        setCustomers([]);
+        setPurifiers([]);
+        setRenewals([]);
+        setServices([]);
+        setTechnicians([]);
+        setInvoices([]);
+        setAmcSubscriptions([]);
+        setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
+        setBusiness(INITIAL_BUSINESS);
       }
       setMounted(true);
       hasLoadedFromCloudRef.current = true;
@@ -420,31 +444,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.customers && (!parsed.customers[0] || parsed.customers[0].id !== 'cust-1')) {
-          const existingPhones = new Set((parsed.customers || []).map((c: any) => c.mobileNumber));
-          const missingCustomers = SR_WATER_CUSTOMERS.filter((c) => !existingPhones.has(c.mobileNumber));
-          const missingCustIds = new Set(missingCustomers.map((c) => c.id));
-          const missingPurifiers = SR_WATER_PURIFIERS.filter((p) => missingCustIds.has(p.customerId));
-          const missingServices = SR_WATER_SERVICES.filter((s) => missingCustIds.has(s.customerId));
-          const missingRenewals = SR_WATER_RENEWALS.filter((r) => missingCustIds.has(r.customerId));
-          const missingInvoices = SR_WATER_INVOICES.filter((i) => missingCustIds.has(i.customerId));
+        const cleanCustomers = (parsed.customers || []).filter((c: any) => !isDummyCustomer(c));
+        const validCustIds = new Set(cleanCustomers.map((c: any) => c.id));
+        const cleanPurifiers = (parsed.purifiers || []).filter((p: any) => validCustIds.has(p.customerId) && !isDummyPurifier(p));
+        const cleanRenewals = (parsed.renewals || []).filter((r: any) => validCustIds.has(r.customerId) && !isDummyRenewal(r));
+        const cleanServices = (parsed.services || []).filter((s: any) => validCustIds.has(s.customerId) && !isDummyService(s));
+        const cleanInvoices = (parsed.invoices || []).filter((i: any) => validCustIds.has(i.customerId) && !isDummyInvoice(i));
 
-          setCustomers([...missingCustomers, ...(parsed.customers || [])]);
-          setPurifiers([...missingPurifiers, ...(parsed.purifiers || [])]);
-          setRenewals([...missingRenewals, ...(parsed.renewals || [])]);
-          setServices([...missingServices, ...(parsed.services || [])]);
-          setTechnicians(parsed.technicians || []);
-          setInventory(parsed.inventory || []);
-          setInvoices([...missingInvoices, ...(parsed.invoices || [])]);
-          setAmcSubscriptions(parsed.amcSubscriptions || []);
-          setPurifierProducts(parsed.purifierProducts || INITIAL_PURIFIER_PRODUCTS);
-          setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
-          setBroadcastLogs(parsed.broadcastLogs || []);
-          if (parsed.business) setBusiness(parsed.business);
-        }
+        setCustomers(cleanCustomers);
+        setPurifiers(cleanPurifiers);
+        setRenewals(cleanRenewals);
+        setServices(cleanServices);
+        setTechnicians(parsed.technicians || []);
+        setInventory(parsed.inventory || []);
+        setInvoices(cleanInvoices);
+        setAmcSubscriptions(parsed.amcSubscriptions || []);
+        setPurifierProducts(parsed.purifierProducts || INITIAL_PURIFIER_PRODUCTS);
+        setAutoReminderConfig(parsed.autoReminderConfig || INITIAL_AUTO_REMINDER_CONFIG);
+        setBroadcastLogs(parsed.broadcastLogs || []);
+        if (parsed.business) setBusiness(parsed.business);
+      } else {
+        setCustomers([]);
+        setPurifiers([]);
+        setRenewals([]);
+        setServices([]);
+        setTechnicians([]);
+        setInvoices([]);
+        setAmcSubscriptions([]);
+        setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
+        setBusiness(INITIAL_BUSINESS);
       }
     } catch {
-      // fallback to initial
+      // fallback to clean initial state
+      setCustomers([]);
+      setPurifiers([]);
+      setRenewals([]);
+      setServices([]);
+      setTechnicians([]);
+      setInvoices([]);
+      setAmcSubscriptions([]);
+      setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
+      setBusiness(INITIAL_BUSINESS);
     }
     setMounted(true);
 
@@ -687,9 +727,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Customer => {
     const newCustId = `cust-${Date.now()}`;
     const nowStr = format(new Date(), 'yyyy-MM-dd');
+    const autoCode =
+      customerData.customerCode && !customerData.customerCode.startsWith('CUST-')
+        ? customerData.customerCode
+        : generateCustomerCode(customers);
+
     const newCustomer: Customer = {
       ...customerData,
       id: newCustId,
+      customerCode: autoCode,
       createdAt: nowStr,
       updatedAt: nowStr,
     };
@@ -1008,11 +1054,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // 6. Generate Invoice record
+    const targetCust = customers.find((c) => c.id === service.customerId);
     const newInvoice: Invoice = {
       id: `inv-${Date.now()}`,
       businessId: business.id,
-      invoiceNumber: `${business.settings?.invoicePrefix || 'AQ-RO-'}${Math.floor(1000 + Math.random() * 9000)}`,
+      invoiceNumber: generateInvoiceSerialNumber(invoices, todayFormatted, business.settings?.invoicePrefix),
       customerId: service.customerId,
+      customerCode: targetCust?.customerCode,
       serviceRecordId: service.id,
       invoiceDate: todayFormatted,
       dueDate: todayFormatted,
@@ -1034,7 +1082,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amountPaid: data.amountPaid,
       balanceDue: balance,
       paymentStatus,
-      notes: `Service Code: ${service.serviceCode}`,
+      notes: `Service Code: ${service.serviceCode}${targetCust?.customerCode ? ` | Customer ID: ${targetCust.customerCode}` : ''}`,
     };
     setInvoices((prev) => [newInvoice, ...prev]);
   };
@@ -1105,36 +1153,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setServices((prev) => [...importedServices, ...prev]);
 
       // Automatically create matching paid invoices for imported services with service charges
-      const newInvoices: Invoice[] = importedServices.map((srv, sIdx) => ({
-        id: `inv-imp-${Date.now()}-${sIdx}`,
-        businessId: business.id,
-        invoiceNumber: `${business.settings.invoicePrefix || 'INV-'}${format(new Date(), 'yyyy')}-${Math.floor(1000 + Math.random() * 9000)}`,
-        customerId: srv.customerId,
-        serviceRecordId: srv.id,
-        invoiceDate: srv.completedTime?.split(' ')[0] || srv.scheduledDate,
-        dueDate: srv.completedTime?.split(' ')[0] || srv.scheduledDate,
-        items: [
-          {
-            id: `item-srv-${srv.id}`,
-            description: srv.total === 0 ? 'Water Purifier Service (Complimentary / Free)' : 'Water Purifier Routine Maintenance Service',
-            quantity: 1,
-            unitPrice: srv.total,
-            amount: srv.total,
-          },
-        ],
-        subtotal: srv.total,
-        discount: 0,
-        gstRate: 0,
-        gstAmount: 0,
-        total: srv.total,
-        amountPaid: srv.total,
-        balanceDue: 0,
-        paymentStatus: 'Paid',
-        paymentMethod: 'Cash',
-        notes: 'Imported from customer records',
-        createdAt: srv.createdAt,
-        updatedAt: srv.updatedAt,
-      }));
+      const newInvoices: Invoice[] = [];
+      importedServices.forEach((srv, sIdx) => {
+        const srvDate = srv.completedTime?.split(' ')[0] || srv.scheduledDate;
+        const targetCust = importedCustomers.find((c) => c.id === srv.customerId) || customers.find((c) => c.id === srv.customerId);
+        const invoiceNum = generateInvoiceSerialNumber(
+          [...newInvoices, ...invoices],
+          srvDate,
+          business.settings?.invoicePrefix
+        );
+        newInvoices.push({
+          id: `inv-imp-${Date.now()}-${sIdx}`,
+          businessId: business.id,
+          invoiceNumber: invoiceNum,
+          customerId: srv.customerId,
+          customerCode: targetCust?.customerCode,
+          serviceRecordId: srv.id,
+          invoiceDate: srvDate,
+          dueDate: srvDate,
+          items: [
+            {
+              id: `item-srv-${srv.id}`,
+              description: srv.total === 0 ? 'Water Purifier Service (Complimentary / Free)' : 'Water Purifier Routine Maintenance Service',
+              quantity: 1,
+              unitPrice: srv.total,
+              amount: srv.total,
+            },
+          ],
+          subtotal: srv.total,
+          discount: 0,
+          gstRate: 0,
+          gstAmount: 0,
+          total: srv.total,
+          amountPaid: srv.total,
+          balanceDue: 0,
+          paymentStatus: 'Paid',
+          paymentMethod: 'Cash',
+          notes: `Imported from customer records${targetCust?.customerCode ? ` | Customer ID: ${targetCust.customerCode}` : ''}`,
+        });
+      });
 
       setInvoices((prev) => [...newInvoices, ...prev]);
     }
@@ -1325,11 +1382,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         balance === 0 ? 'Paid' : amountPaid > 0 ? 'Partially paid' : 'Pending';
 
       const invoiceId = `inv-${Date.now()}`;
+      const targetCust = customers.find((c) => c.id === recordData.customerId);
       const newInvoice: Invoice = {
         id: invoiceId,
         businessId: business.id || 'biz-client-ro',
-        invoiceNumber: `${business.settings?.invoicePrefix || 'AQ-RO-'}${Math.floor(1000 + Math.random() * 9000)}`,
+        invoiceNumber: generateInvoiceSerialNumber(invoices, recordData.scheduledDate || nowStr, business.settings?.invoicePrefix),
         customerId: recordData.customerId,
+        customerCode: targetCust?.customerCode,
         serviceRecordId: newId,
         invoiceDate: recordData.scheduledDate || nowStr,
         dueDate: recordData.scheduledDate || nowStr,
@@ -1357,7 +1416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         amountPaid: amountPaid,
         balanceDue: balance,
         paymentStatus,
-        notes: `Service Code: ${code}`,
+        notes: `Service Code: ${code}${targetCust?.customerCode ? ` | Customer ID: ${targetCust.customerCode}` : ''}`,
       };
 
       setInvoices((prev) => [newInvoice, ...prev]);
@@ -1393,6 +1452,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     machineSerialNo?: string;
     deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
     installationDate?: string;
+    warrantyExpiry?: string;
+    sparePartsWarrantyExpiry?: string;
+    sparePartsWarrantyNotes?: string;
     technicianId?: string;
     items: InvoiceItem[];
     subtotal: number;
@@ -1411,19 +1473,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }): Promise<{ invoice: Invoice; purifier?: Purifier; service?: ServiceRecord }> => {
     const todayFormatted = format(new Date(), 'yyyy-MM-dd');
     const invoiceId = `inv-sales-${Date.now()}`;
-    const invoiceNum = `${business.settings?.invoicePrefix || 'AQ-RO-'}SLS-${Math.floor(1000 + Math.random() * 9000)}`;
+    const invoiceNum = generateInvoiceSerialNumber(invoices, todayFormatted, business.settings?.invoicePrefix);
 
+    const targetCust = customers.find((c) => c.id === payload.customerId);
     const newInvoice: Invoice = {
       id: invoiceId,
       businessId: business.id || 'biz-client-ro',
       invoiceNumber: invoiceNum,
       customerId: payload.customerId,
+      customerCode: targetCust?.customerCode,
       purifierProductId: payload.purifierProductId,
       invoiceType: 'SALES',
       machineSerialNo: payload.machineSerialNo,
       paymentMethod: payload.paymentMethod,
       deliveryStatus: payload.deliveryStatus || 'Pending Installation',
       installationDate: payload.installationDate || todayFormatted,
+      warrantyExpiry: payload.warrantyExpiry || format(addMonths(new Date(payload.installationDate || todayFormatted), 12), 'yyyy-MM-dd'),
+      sparePartsWarrantyExpiry: payload.sparePartsWarrantyExpiry || format(addMonths(new Date(payload.installationDate || todayFormatted), 6), 'yyyy-MM-dd'),
       technicianId: payload.technicianId,
       invoiceDate: todayFormatted,
       dueDate: payload.installationDate || todayFormatted,
@@ -1461,7 +1527,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         installationDate: payload.installationDate || todayFormatted,
         purchaseDate: payload.installationDate || todayFormatted,
         warrantyStart: payload.installationDate || todayFormatted,
-        warrantyExpiry: format(addMonths(new Date(payload.installationDate || todayFormatted), 12), 'yyyy-MM-dd'),
+        warrantyExpiry: payload.warrantyExpiry || format(addMonths(new Date(payload.installationDate || todayFormatted), 12), 'yyyy-MM-dd'),
+        sparePartsWarrantyExpiry: payload.sparePartsWarrantyExpiry || format(addMonths(new Date(payload.installationDate || todayFormatted), 6), 'yyyy-MM-dd'),
+        sparePartsWarrantyNotes: payload.sparePartsWarrantyNotes || 'RO Booster Pump, SMPS Adapter, Electricals & Membrane',
         installationLocation: 'Kitchen',
         currentCondition: 'Excellent',
         inletTdsBaseline: 750,
@@ -1782,26 +1850,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   const resetDemoData = () => {
-    if (isLocalSandbox()) {
-      try {
-        localStorage.removeItem('ro_local_sandbox_v1');
-      } catch {}
-      setBusiness(DEMO_BUSINESS);
-      setCustomers(DEMO_CUSTOMERS);
-      setPurifiers(DEMO_PURIFIERS);
-      setRenewals(DEMO_RENEWALS);
-      setServices(DEMO_SERVICES);
-      setTechnicians(DEMO_TECHNICIANS);
-      setInvoices(DEMO_INVOICES);
-      setPurifierProducts(DEMO_PURIFIER_PRODUCTS);
-      setAutoReminderConfig(INITIAL_AUTO_REMINDER_CONFIG);
-      setBroadcastLogs([]);
-      return;
-    }
-
     try {
+      localStorage.removeItem('ro_local_sandbox_v1');
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('ro_renewal_engine_v1_store');
     } catch {}
+
     setBusiness(INITIAL_BUSINESS);
     setUsers(INITIAL_USERS);
     setCurrentUser(INITIAL_USERS[0]);
@@ -1819,6 +1873,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPurifierProducts(INITIAL_PURIFIER_PRODUCTS);
     setAutoReminderConfig(INITIAL_AUTO_REMINDER_CONFIG);
     setBroadcastLogs([]);
+  };
+
+  const clearDummyData = () => {
+    // 1. Wipe all transactional records
+    setCustomers([]);
+    setPurifiers([]);
+    setRenewals([]);
+    setServices([]);
+    setInvoices([]);
+    setAmcSubscriptions([]);
+    setCommunications([]);
+    setBroadcastLogs([]);
+
+    // 2. Clean business profile settings
+    setBusiness((prev) => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        invoicePrefix: '', // Blank prefix so it generates pure YYMMXXXX series
+        gstin: prev.settings?.gstin === '36DEMO1234F1Z9' ? '' : prev.settings?.gstin,
+      },
+    }));
+
+    try {
+      localStorage.removeItem('ro_local_sandbox_v1');
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('ro_renewal_engine_v1_store');
+    } catch {}
   };
 
   return (
@@ -1876,6 +1958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         runAutomatedRemindersNow,
         broadcastToAllCustomers,
         resetDemoData,
+        clearDummyData,
         syncWithCloud,
         lastCloudSyncTime,
         isOwnerAuthenticated,

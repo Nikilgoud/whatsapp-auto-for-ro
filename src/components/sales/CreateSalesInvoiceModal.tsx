@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { PurifierProduct, Customer, Technician, InvoiceItem, PaymentMethod } from '@/types';
-import { format } from 'date-fns';
+import { format, addMonths } from 'date-fns';
+import { generateCustomerCode, formatDateDDMMYYYY } from '@/lib/utils';
 import {
   X,
   CheckCircle2,
@@ -74,7 +75,6 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustAddress, setNewCustAddress] = useState('');
   const [newCustArea, setNewCustArea] = useState('Madhapur');
-  const [newCustLanguage, setNewCustLanguage] = useState<'en' | 'te' | 'hi'>('te');
 
   // Step 2: Machine Selection
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -95,7 +95,29 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
   const [bundleAmc, setBundleAmc] = useState<boolean>(false);
   const [selectedAmcPlanId, setSelectedAmcPlanId] = useState<string>('');
   const [installationDate, setInstallationDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [warrantyExpiryDate, setWarrantyExpiryDate] = useState<string>(
+    format(addMonths(new Date(), 12), 'yyyy-MM-dd')
+  );
+  const [sparePartsWarrantyExpiryDate, setSparePartsWarrantyExpiryDate] = useState<string>(
+    format(addMonths(new Date(), 6), 'yyyy-MM-dd')
+  );
+  const [sparePartsWarrantyNotes, setSparePartsWarrantyNotes] = useState<string>(
+    'RO Booster Pump, SMPS Adapter, Electricals & Membrane'
+  );
   const [assignedTechnicianId, setAssignedTechnicianId] = useState<string>('');
+
+  const handleInstallationDateChange = (newDate: string) => {
+    setInstallationDate(newDate);
+    try {
+      const d = new Date(newDate);
+      if (!isNaN(d.getTime())) {
+        setWarrantyExpiryDate(format(addMonths(d, 12), 'yyyy-MM-dd'));
+        setSparePartsWarrantyExpiryDate(format(addMonths(d, 6), 'yyyy-MM-dd'));
+      }
+    } catch {
+      // keep existing
+    }
+  };
 
   // Step 5: Payment & Confirmations
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('UPI');
@@ -132,7 +154,11 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
       }
       setAccessories(COMMON_ACCESSORIES.map((a) => ({ ...a, selected: false })));
       setBundleAmc(false);
-      setInstallationDate(format(new Date(), 'yyyy-MM-dd'));
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      setInstallationDate(todayStr);
+      setWarrantyExpiryDate(format(addMonths(new Date(), 12), 'yyyy-MM-dd'));
+      setSparePartsWarrantyExpiryDate(format(addMonths(new Date(), 6), 'yyyy-MM-dd'));
+      setSparePartsWarrantyNotes('RO Booster Pump, SMPS Adapter, Electricals & Membrane');
       if (technicians.length > 0) {
         setAssignedTechnicianId(technicians[0].id);
       }
@@ -239,7 +265,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
       if (customerMode === 'new') {
         const created = addCustomer({
           businessId: business.id || 'biz-client-ro',
-          customerCode: `CUST-${Math.floor(1000 + Math.random() * 9000)}`,
+          customerCode: generateCustomerCode(customers),
           fullName: newCustName.trim(),
           mobileNumber: newCustPhone.trim(),
           whatsappNumber: newCustPhone.trim(),
@@ -253,7 +279,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
           customerType: 'Residential',
           status: 'Active customer',
           tags: ['RO Machine Sales'],
-          languagePreference: newCustLanguage,
+          languagePreference: 'en',
           notes: 'Customer created during RO machine sales invoicing',
           totalSpend: 0,
           pendingBalance: 0,
@@ -303,6 +329,9 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
         machineSerialNo: customSerialNo,
         deliveryStatus: 'Pending Installation',
         installationDate,
+        warrantyExpiry: warrantyExpiryDate,
+        sparePartsWarrantyExpiry: sparePartsWarrantyExpiryDate,
+        sparePartsWarrantyNotes: sparePartsWarrantyNotes.trim() || undefined,
         technicianId: assignedTechnicianId || undefined,
         items,
         subtotal: rawSubtotal,
@@ -313,7 +342,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
         amountPaid,
         balanceDue,
         paymentMethod,
-        notes: orderNotes || `Sold by ${business.name}. Warranty active for 12 months.`,
+        notes: orderNotes || `Sold by ${business.name}. Warranty active until ${formatDateDDMMYYYY(warrantyExpiryDate)}, Spare parts warranty until ${formatDateDDMMYYYY(sparePartsWarrantyExpiryDate)}.`,
         autoRegisterPurifier,
         autoScheduleInstallation,
         amcPlanId: bundleAmc ? selectedAmcPlanId : undefined,
@@ -338,6 +367,8 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
     (c) =>
       c.fullName.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
       c.mobileNumber.includes(customerSearchQuery) ||
+      (c.alternateMobile && c.alternateMobile.includes(customerSearchQuery)) ||
+      (c.alternativePhone && c.alternativePhone.includes(customerSearchQuery)) ||
       c.areaLocality.toLowerCase().includes(customerSearchQuery.toLowerCase())
   );
 
@@ -466,7 +497,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                               {c.fullName}
                             </span>
                             <span className="text-[11px] text-slate-500">
-                              +91 {c.mobileNumber} • {c.areaLocality}
+                              +91 {c.mobileNumber}{(c.alternateMobile || c.alternativePhone) ? ` • Alt: +91 ${c.alternateMobile || c.alternativePhone}` : ''} • {c.areaLocality}
                             </span>
                           </div>
                           {selectedCustomerId === c.id && (
@@ -506,33 +537,17 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Area / Locality
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Kondapur / Madhapur"
-                        value={newCustArea}
-                        onChange={(e) => setNewCustArea(e.target.value)}
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Preferred WhatsApp Language
-                      </label>
-                      <select
-                        value={newCustLanguage}
-                        onChange={(e) => setNewCustLanguage(e.target.value as any)}
-                        className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                      >
-                        <option value="te">Telugu (తెలుగు)</option>
-                        <option value="en">English</option>
-                        <option value="hi">Hindi (हिंदी)</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Area / Locality
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Kondapur / Madhapur"
+                      value={newCustArea}
+                      onChange={(e) => setNewCustArea(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                    />
                   </div>
 
                   <div>
@@ -790,7 +805,7 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                     <input
                       type="date"
                       value={installationDate}
-                      onChange={(e) => setInstallationDate(e.target.value)}
+                      onChange={(e) => handleInstallationDateChange(e.target.value)}
                       className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                     />
                   </div>
@@ -809,6 +824,146 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                       ))}
                     </select>
                   </div>
+                </div>
+              </div>
+
+              {/* EQUIPMENT & SPARE PARTS WARRANTY DATES (Step 4 Requirement) */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/80 via-teal-50/40 to-slate-50 dark:from-emerald-950/30 dark:via-slate-800/60 dark:to-slate-800/40 border-2 border-emerald-500/30 dark:border-emerald-800/60 space-y-3.5">
+                <div className="flex items-center gap-2.5 border-b border-emerald-200/80 dark:border-emerald-800/40 pb-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Equipment & Spare Parts Warranty Coverage
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Configure unit warranty expiry date and spare parts guarantee period.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* 1. Machine / Unit Warranty Expiry */}
+                  <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-200/80 dark:border-slate-700 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <span>Warranty Expiry Date *</span>
+                      </label>
+                      <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded">
+                        {formatDateDDMMYYYY(warrantyExpiryDate)}
+                      </span>
+                    </div>
+                    <input
+                      type="date"
+                      value={warrantyExpiryDate}
+                      onChange={(e) => setWarrantyExpiryDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                      <span className="text-[10px] text-slate-400 font-medium">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setWarrantyExpiryDate(format(addMonths(base, 12), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                      >
+                        1 Year (12 Mo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setWarrantyExpiryDate(format(addMonths(base, 24), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        2 Years (24 Mo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setWarrantyExpiryDate(format(addMonths(base, 6), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        6 Months
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Spare Parts Warranty Expiry */}
+                  <div className="p-3 bg-white dark:bg-slate-800/80 rounded-xl border border-emerald-200/80 dark:border-slate-700 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <span>Spare Part Expiry Date *</span>
+                      </label>
+                      <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 rounded">
+                        {formatDateDDMMYYYY(sparePartsWarrantyExpiryDate)}
+                      </span>
+                    </div>
+                    <input
+                      type="date"
+                      value={sparePartsWarrantyExpiryDate}
+                      onChange={(e) => setSparePartsWarrantyExpiryDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                      <span className="text-[10px] text-slate-400 font-medium">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setSparePartsWarrantyExpiryDate(format(addMonths(base, 6), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                      >
+                        6 Months
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setSparePartsWarrantyExpiryDate(format(addMonths(base, 12), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        1 Year (12 Mo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = installationDate ? new Date(installationDate) : new Date();
+                          setSparePartsWarrantyExpiryDate(format(addMonths(base, 3), 'yyyy-MM-dd'));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                      >
+                        3 Months
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Covered Spares Note */}
+                <div className="pt-1">
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Covered Spare Parts & Guarantee Scope
+                  </label>
+                  <input
+                    type="text"
+                    value={sparePartsWarrantyNotes}
+                    onChange={(e) => setSparePartsWarrantyNotes(e.target.value)}
+                    placeholder="e.g. RO Booster Pump, SMPS Adapter, Electricals & Membrane"
+                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    These warranty terms and expiration dates are saved directly to the customer&apos;s RO machine profile and reflected on the official Tax Invoice & Warranty Card.
+                  </p>
                 </div>
               </div>
             </div>
@@ -850,6 +1005,21 @@ export const CreateSalesInvoiceModal: React.FC<CreateSalesInvoiceModalProps> = (
                 <div className="flex justify-between text-sm font-extrabold text-slate-900 dark:text-white pt-2 border-t border-emerald-200/80 dark:border-emerald-900/50">
                   <span>Grand Total Payable:</span>
                   <span className="text-emerald-700 dark:text-emerald-400">₹{grandTotal.toLocaleString('en-IN')}</span>
+                </div>
+
+                <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 text-[11px] grid grid-cols-2 gap-2">
+                  <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-emerald-100 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Unit Warranty Expiry</span>
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                      {formatDateDDMMYYYY(warrantyExpiryDate)}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-emerald-100 dark:border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold">Spare Parts Expiry</span>
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                      {formatDateDDMMYYYY(sparePartsWarrantyExpiryDate)}
+                    </span>
+                  </div>
                 </div>
               </div>
 

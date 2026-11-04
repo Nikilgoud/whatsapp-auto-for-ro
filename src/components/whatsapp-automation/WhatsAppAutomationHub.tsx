@@ -50,7 +50,7 @@ import {
   interpolateTemplate,
   TemplateCategory,
 } from '@/lib/services/whatsappEngine';
-import { PurifierProduct, LanguageCode, ChatMessage } from '@/types';
+import { PurifierProduct, ChatMessage } from '@/types';
 import { formatIndianCurrency, formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '@/lib/utils';
 
 export const WhatsAppAutomationHub: React.FC = () => {
@@ -69,7 +69,6 @@ export const WhatsAppAutomationHub: React.FC = () => {
     broadcastToAllCustomers,
     broadcastLogs,
     communications,
-    selectedLanguage,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'chatbot' | 'catalog' | 'broadcast' | 'reminders' | 'templates' | 'logs'>('chatbot');
@@ -103,7 +102,6 @@ export const WhatsAppAutomationHub: React.FC = () => {
   // Templates Hub State
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState<'ALL' | TemplateCategory>('ALL');
   const [templateSearchQuery, setTemplateSearchQuery] = useState('');
-  const [templateActiveLanguages, setTemplateActiveLanguages] = useState<Record<string, LanguageCode>>({});
   const [templateShowLivePreview, setTemplateShowLivePreview] = useState(true);
   const [copiedTemplateKey, setCopiedTemplateKey] = useState<string | null>(null);
   const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'overdue' | 'due_soon' | 'amc_active'>('all');
@@ -1092,10 +1090,10 @@ export const WhatsAppAutomationHub: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-emerald-600" />
-                  <span>WhatsApp Template Library & Multi-Language Hub</span>
+                  <span>WhatsApp Template Library (English)</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  12 pre-approved templates in English, Telugu, Hindi, and Hinglish with automatic business address & website footer.
+                  12 pre-approved templates in English with automatic business address & website footer.
                 </p>
               </div>
 
@@ -1169,14 +1167,11 @@ export const WhatsAppAutomationHub: React.FC = () => {
                   key.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
                   tpl.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
                   tpl.description.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
-                  Object.values(tpl.languages).some((txt) =>
-                    txt.toLowerCase().includes(templateSearchQuery.toLowerCase())
-                  );
+                  (tpl.languages.en && tpl.languages.en.toLowerCase().includes(templateSearchQuery.toLowerCase()));
                 return matchesCategory && matchesSearch;
               })
               .map(([key, tpl]) => {
-                const currentLang: LanguageCode = templateActiveLanguages[key] || selectedLanguage || 'te';
-                const rawText = tpl.languages[currentLang] || tpl.languages.te || tpl.languages.en;
+                const rawText = tpl.languages.en || '';
 
                 const displayedText = templateShowLivePreview
                   ? interpolateTemplate(rawText, {
@@ -1223,27 +1218,6 @@ export const WhatsAppAutomationHub: React.FC = () => {
                           >
                             {tpl.category.replace('_', ' ')}
                           </span>
-                        </div>
-
-                        {/* Language Selector on Card */}
-                        <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                          {(['en', 'te', 'hi', 'hinglish'] as LanguageCode[]).map((l) => (
-                            <button
-                              key={l}
-                              type="button"
-                              onClick={() =>
-                                setTemplateActiveLanguages((prev) => ({ ...prev, [key]: l }))
-                              }
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded-md uppercase transition ${
-                                currentLang === l
-                                  ? 'bg-blue-600 text-white shadow-2xs'
-                                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                              }`}
-                              title={`Switch to ${l.toUpperCase()}`}
-                            >
-                              {l === 'te' ? 'తెలుగు' : l === 'hi' ? 'హిందీ' : l === 'en' ? 'EN' : 'Hing'}
-                            </button>
-                          ))}
                         </div>
                       </div>
 

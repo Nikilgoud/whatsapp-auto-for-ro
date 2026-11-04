@@ -33,6 +33,16 @@ export async function POST(req: NextRequest) {
     const rawBody = payload.bodyText || payload.messageText;
     const formattedBody = rawBody ? appendBusinessFooter(rawBody) : undefined;
 
+    const messageType = payload.interactiveType === 'button'
+      ? 'INTERACTIVE_BUTTON'
+      : payload.interactiveType === 'list'
+      ? 'INTERACTIVE_LIST'
+      : payload.templateName
+      ? 'TEMPLATE'
+      : payload.mediaUrl
+      ? 'MEDIA'
+      : 'TEXT';
+
     // Send via Meta Cloud API or mock engine
     const sendResult = await sendWhatsAppMessage({
       businessId,
@@ -40,10 +50,14 @@ export async function POST(req: NextRequest) {
       customerId: payload.customerId,
       bodyText: formattedBody,
       templateName: payload.templateName,
-      languageCode: payload.languageCode,
+      languageCode: payload.languageCode || 'en',
+      parameters: payload.parameters,
       mediaUrl: payload.mediaUrl,
       mediaType: payload.mediaType,
       mediaCaption: payload.mediaCaption,
+      mediaFilename: payload.mediaFilename,
+      interactiveType: payload.interactiveType,
+      interactiveData: payload.interactiveData,
       renewalId: payload.renewalId,
       serviceId: payload.serviceId,
     });
@@ -60,11 +74,13 @@ export async function POST(req: NextRequest) {
       outputTds: payload.outputTds,
       phoneNumber: payload.recipientPhone,
       direction: 'OUTBOUND',
-      messageType: payload.templateName ? 'TEMPLATE' : payload.mediaUrl ? 'MEDIA' : 'TEXT',
+      messageType,
       templateName: payload.templateName || null,
-      content: formattedBody || payload.templateName || 'Media message',
+      content: formattedBody || payload.templateName || (payload.interactiveData?.bodyText) || 'Interactive Message',
       mediaUrl: payload.mediaUrl || null,
       mediaType: payload.mediaType || null,
+      mediaFilename: payload.mediaFilename || null,
+      interactiveData: payload.interactiveData || null,
       providerMessageId: sendResult.messageId,
       status: sendResult.success ? 'DELIVERED' : 'FAILED',
     });

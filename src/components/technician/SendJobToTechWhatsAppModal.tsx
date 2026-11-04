@@ -119,7 +119,7 @@ export const SendJobToTechWhatsAppModal: React.FC<SendJobToTechWhatsAppModalProp
               </span>
             </div>
             <p className="text-slate-600 dark:text-slate-300">
-              📍 {customer.streetAddress}, {customer.areaLocality} • +91 {customer.mobileNumber}
+              📍 {customer.streetAddress}, {customer.areaLocality} • +91 {customer.mobileNumber}{(customer.alternateMobile || customer.alternativePhone) ? ` • Alt: +91 ${customer.alternateMobile || customer.alternativePhone}` : ''}
             </p>
             <p className="text-slate-500">
               📅 Scheduled: <strong>{formatDateDDMMYYYY(service.scheduledDate)}</strong> ({service.scheduledTimeSlot}) • Type: <strong>{service.serviceType}</strong>

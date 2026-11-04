@@ -99,11 +99,113 @@ export function formatDateTimeDDMMYYYY(
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12;
-    hours = hours ? hours : 12;
+    hours = hours ? hours : 12; // '0' should be '12'
     return `${dateStr}, ${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
   } catch {
-    return formatDateDDMMYYYY(dateInput, fallback);
+    return fallback;
   }
+}
+
+/**
+ * Generates a serial number for every invoice generated using the requested (YYMM + Sequence) series.
+ * Format: YYMMXXXX (e.g. 26110001, 26110002 for November 2026).
+ * - YY: 2-digit year (e.g. '26' for 2026)
+ * - MM: 2-digit month (e.g. '11' for November)
+ * - Sequence: 4-digit sequential counter starting from 0001 (or higher if existing invoices exist).
+ *
+ * When dummy data is removed (or in a fresh database with 0 invoices for the month),
+ * it starts cleanly at 26110001.
+ */
+export function generateInvoiceSerialNumber(
+  existingInvoices: { invoiceNumber?: string }[] = [],
+  dateInput?: string | Date | null,
+  customPrefix?: string
+): string {
+  let d: Date;
+  if (!dateInput) {
+    d = new Date();
+  } else if (typeof dateInput === 'string') {
+    d = new Date(dateInput);
+    if (isNaN(d.getTime())) d = new Date();
+  } else {
+    d = dateInput;
+  }
+
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const seriesKey = `${yy}${mm}`;
+
+  // If a custom prefix is explicitly specified in settings and is not a default demo prefix
+  const cleanPrefix =
+    customPrefix && !['DEMO-', 'AQ-RO-', 'RO-'].includes(customPrefix)
+      ? customPrefix.trim()
+      : '';
+
+  // Scan existing invoices for this month's YYMM series to find highest sequence
+  let maxSeq = 0;
+  for (const inv of existingInvoices) {
+    if (!inv || !inv.invoiceNumber) continue;
+    // Match YYMM followed by digits: e.g. "26110001", "2611-0001", "INV-26110001"
+    const regex = new RegExp(`(?:^|[^0-9])${seriesKey}[-]?(\\d+)`);
+    const match = inv.invoiceNumber.match(regex);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  }
+
+  const nextSeq = maxSeq + 1;
+  const seqStr = String(nextSeq).padStart(4, '0');
+
+  return cleanPrefix ? `${cleanPrefix}${seriesKey}${seqStr}` : `${seriesKey}${seqStr}`;
+}
+
+/**
+ * Generates a Customer ID using the sequence+year+month format (e.g. 00012611, 00022611).
+ * - sequence: 4-digit sequential counter starting from 0001
+ * - year: 2-digit year (e.g. '26' for 2026)
+ * - month: 2-digit month (e.g. '11' for November)
+ *
+ * When dummy data is removed or in a fresh database, the first customer is 00012611.
+ */
+export function generateCustomerCode(
+  existingCustomers: { customerCode?: string }[] = [],
+  dateInput?: string | Date | null
+): string {
+  let d: Date;
+  if (!dateInput) {
+    d = new Date();
+  } else if (typeof dateInput === 'string') {
+    d = new Date(dateInput);
+    if (isNaN(d.getTime())) d = new Date();
+  } else {
+    d = dateInput;
+  }
+
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yearMonth = `${yy}${mm}`;
+
+  // Find highest sequence number for this yearMonth suffix (e.g. ends with "2611")
+  let maxSeq = 0;
+  for (const c of existingCustomers) {
+    if (!c || !c.customerCode) continue;
+    // Match digits followed by YYMM: e.g. "00012611", "0001-2611", "CUST-00012611"
+    const regex = new RegExp(`(?:^|[^0-9])(\\d{1,6})[-]?${yearMonth}(?:$|[^0-9])`);
+    const match = c.customerCode.match(regex);
+    if (match && match[1]) {
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed) && parsed > maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  }
+
+  const nextSeq = maxSeq + 1;
+  const seqStr = String(nextSeq).padStart(4, '0');
+  return `${seqStr}${yearMonth}`;
 }
 
 /**

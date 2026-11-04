@@ -24,14 +24,13 @@ import {
   CheckCheck,
   Eye,
   EyeOff,
-  Globe,
   ShoppingCart,
   Package,
   Plus,
   Trash2,
 } from 'lucide-react';
 import { format, addMonths } from 'date-fns';
-import { getServiceCharge, formatIndianCurrency, formatDateDDMMYYYY } from '@/lib/utils';
+import { getServiceCharge, formatIndianCurrency, formatDateDDMMYYYY, generateCustomerCode } from '@/lib/utils';
 import { formatBusinessDetailsFooter, appendBusinessFooter } from '@/lib/services/whatsappEngine';
 
 export const COMMON_RO_SPARES = [
@@ -60,12 +59,11 @@ interface AddCustomerModalProps {
 }
 
 export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onClose }) => {
-  const { business, addCustomer, amcPlans, addAmcPlan, addServiceRecord, logCommunication, purifierProducts } = useApp();
+  const { business, customers, addCustomer, amcPlans, addAmcPlan, addServiceRecord, logCommunication, purifierProducts } = useApp();
   const [step, setStep] = useState<number>(1);
 
   // Automated WhatsApp Welcome & Onboarding
   const [sendWelcomeWhatsApp, setSendWelcomeWhatsApp] = useState<boolean>(true);
-  const [welcomeLanguage, setWelcomeLanguage] = useState<'bilingual' | 'te' | 'en'>('bilingual');
   const [whatsappOptOut, setWhatsappOptOut] = useState<boolean>(false);
   const [showWelcomePreview, setShowWelcomePreview] = useState<boolean>(true);
   const [customWelcomeNote, setCustomWelcomeNote] = useState<string>('');
@@ -73,6 +71,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
 
   // STEP 1 & 2: Contact & Name
   const [mobileNumber, setMobileNumber] = useState('');
+  const [alternateMobile, setAlternateMobile] = useState('');
   const [fullName, setFullName] = useState('');
   const [customerType, setCustomerType] = useState<CustomerType>('Residential');
 
@@ -206,33 +205,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
       return appendBusinessFooter(customWelcomeNote.trim(), business);
     }
 
-    if (welcomeLanguage === 'te') {
-      return (
-        `నమస్తే ${custName} గారు! 🚰\n` +
-        `${bName} లో నమోదు చేసుకున్నందుకు ధన్యవాదాలు. మీ ${isNewPurifierSale ? 'కొత్త ' : ''}${purifierName} ప్యూరిఫైయర్ ప్రారంభ TDS ${calculatedOutputTds} ppm తో విజయవంతంగా రిజిస్టర్ చేయబడింది.\n` +
-        `🗓️ మీ తదుపరి షెడ్యూల్డ్ సర్వీస్ తేదీ: ${dueDateDisplay}.\n` +
-        `మీ తాగునీటి నాణ్యత, ఫిల్టర్ చెక్ లేదా అత్యవసర సర్వీస్ కోసం ఈ వాట్సాప్ నంబర్‌కు ఎప్పుడైనా రిప్లై ఇవ్వండి!\n\n` +
-        bFooter
-      );
-    }
-
-    if (welcomeLanguage === 'en') {
-      return (
-        `Welcome ${custName}! 🚰\n` +
-        `Thank you for registering with ${bName}. Your ${isNewPurifierSale ? 'new ' : ''}${purifierName} has been registered with initial TDS ${calculatedOutputTds} ppm.\n` +
-        `🗓️ Your upcoming scheduled service date is: ${dueDateDisplay}.\n` +
-        `For any service assistance, filter check, or emergency water breakdown, reply to this WhatsApp number anytime!\n\n` +
-        bFooter
-      );
-    }
-
-    // Default: Bilingual (Telugu + English)
     return (
-      `నమస్తే / Welcome ${custName}! 🚰\n` +
+      `Welcome ${custName}! 🚰\n` +
       `Thank you for registering with ${bName}. Your ${isNewPurifierSale ? 'new ' : ''}${purifierName} has been registered with initial TDS ${calculatedOutputTds} ppm.\n` +
       `🗓️ Your upcoming scheduled service date is: ${dueDateDisplay}.\n` +
-      `మీ తాగునీటి నాణ్యత, ఫిల్టర్ చెక్ లేదా ఏవైనా సమస్యల కోసం ఈ వాట్సాప్ నంబర్‌కు ఎప్పుడైనా మెసేజ్ చేయండి.\n` +
-      `For any service assistance, filter check, or emergency breakdown, reply to this WhatsApp number anytime!\n\n` +
+      `For any service assistance, filter check, or emergency water breakdown, reply to this WhatsApp number anytime!\n\n` +
       bFooter
     );
   };
@@ -300,6 +277,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     }
 
     const cleanPhone = mobileNumber.replace(/\D/g, '').slice(-10);
+    const cleanAltPhone = alternateMobile.replace(/\D/g, '').slice(-10);
     const finalBrand = brandDropdown === 'CUSTOM' ? customBrandName.trim() || 'Custom RO' : brandDropdown;
     const finalPurifierType =
       purifierTypeDropdown === 'CUSTOM'
@@ -334,9 +312,11 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     const newCustomer = addCustomer(
       {
         businessId: business.id,
-        customerCode: `CUST-${Math.floor(1000 + Math.random() * 9000)}`,
+        customerCode: generateCustomerCode(customers),
         fullName,
         mobileNumber: cleanPhone,
+        alternateMobile: cleanAltPhone || undefined,
+        alternativePhone: cleanAltPhone || undefined,
         whatsappNumber: `91${cleanPhone}`,
         houseFlatNo: '',
         streetAddress,
@@ -350,7 +330,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         tags: isNewPurifierSale ? ['New Purifier Unit', 'New Customer'] : ['New Customer'],
         notes: [notes, isNewPurifierSale ? `New Machine Sale: ${finalBrand} ${model} (${formatIndianCurrency(finalMachinePrice)})` : ''].filter(Boolean).join(' | '),
         whatsappOptOut,
-        languagePreference: welcomeLanguage,
+        languagePreference: 'en',
         totalSpend: totalAmount,
         pendingBalance: 0,
       },
@@ -467,7 +447,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
           nextDueDate: computedNextDueDate,
           outputTds: outputTdsCalc,
           bodyText: welcomeContent,
-          languageCode: welcomeLanguage === 'te' ? 'te' : 'en',
+          languageCode: 'en',
         }),
       }).catch((err) => console.warn('Failed to dispatch welcome WhatsApp message:', err));
 
@@ -477,7 +457,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
         customerId: newCustomer.id,
         channel: 'WhatsApp',
         templateKey: 'WELCOME_ONBOARDING',
-        language: (welcomeLanguage === 'te' ? 'te' : welcomeLanguage === 'en' ? 'en' : 'te') as any,
+        language: 'en',
         messageText: welcomeContent,
         status: 'Delivered',
         responseReceived: false,
@@ -488,6 +468,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     // Reset Form
     setStep(1);
     setMobileNumber('');
+    setAlternateMobile('');
     setFullName('');
     setStreetAddress('');
     setWarrantyExpiry('');
@@ -495,7 +476,6 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
     setSparePartsWarrantyNotes('');
     setSelectedAmcPlanId('none');
     setSendWelcomeWhatsApp(true);
-    setWelcomeLanguage('bilingual');
     setWhatsappOptOut(false);
     setCustomWelcomeNote('');
     setIsEditingWelcomeMsg(false);
@@ -543,6 +523,17 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                 </div>
               </div>
 
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 block">
+                    Customer ID
+                  </span>
+                  <span className="font-mono font-bold text-sm text-slate-900 dark:text-white">
+                    {generateCustomerCode(customers)}
+                  </span>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   10-Digit Mobile / WhatsApp Number *
@@ -559,6 +550,26 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                     className="w-full pl-12 pr-4 py-2.5 text-sm font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Alternative Mobile Number (Optional)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-sm font-bold text-slate-400">+91</span>
+                  <input
+                    type="tel"
+                    placeholder="98490 00000"
+                    maxLength={10}
+                    value={alternateMobile}
+                    onChange={(e) => setAlternateMobile(e.target.value.replace(/\D/g, ''))}
+                    className="w-full pl-12 pr-4 py-2.5 text-sm font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  Secondary phone for technician calls and emergency service communications
+                </p>
               </div>
             </div>
           )}
@@ -1233,10 +1244,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                                 }}
                                 className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
                               >
-                                <option value="">-- Select Spare Part from List (auto-fills price) --</option>
+                                <option value="">-- Select Spare Part from List --</option>
                                 {COMMON_RO_SPARES.map((s) => (
                                   <option key={s.name} value={s.name}>
-                                    {s.name} — ₹{s.price}
+                                    {s.name}
                                   </option>
                                 ))}
                               </select>
@@ -1545,49 +1556,6 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({ isOpen, onCl
                 {/* Sub-controls when enabled */}
                 {sendWelcomeWhatsApp && !whatsappOptOut && (
                   <div className="space-y-2.5 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40">
-                    {/* Language Preference Tabs */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                        <Globe className="w-3 h-3 text-emerald-600" />
-                        Message Language:
-                      </span>
-                      <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-lg border border-emerald-200/80 dark:border-emerald-800/60 text-[10px] font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setWelcomeLanguage('bilingual')}
-                          className={`px-2 py-1 rounded-md transition ${
-                            welcomeLanguage === 'bilingual'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                          }`}
-                        >
-                          Bilingual (తెలుగు + En)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWelcomeLanguage('te')}
-                          className={`px-2 py-1 rounded-md transition ${
-                            welcomeLanguage === 'te'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                          }`}
-                        >
-                          తెలుగు
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWelcomeLanguage('en')}
-                          className={`px-2 py-1 rounded-md transition ${
-                            welcomeLanguage === 'en'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                          }`}
-                        >
-                          English
-                        </button>
-                      </div>
-                    </div>
-
                     {/* Preview Toggle Header */}
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">

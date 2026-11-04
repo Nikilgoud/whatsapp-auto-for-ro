@@ -541,7 +541,14 @@ export const ImportCustomersModal: React.FC<ImportCustomersModalProps> = ({ isOp
 
                               <td className="py-2.5 px-3 font-mono text-slate-700 dark:text-slate-300">
                                 {cust ? (
-                                  `+91 ${cust.mobileNumber}`
+                                  <div>
+                                    <span>+91 {cust.mobileNumber}</span>
+                                    {(cust.alternateMobile || cust.alternativePhone) && (
+                                      <span className="block text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                                        Alt: +91 {cust.alternateMobile || cust.alternativePhone}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : (
                                   <span className="text-rose-500 italic">
                                     {row.errors.find((e) => e.includes('phone')) || 'Invalid phone'}

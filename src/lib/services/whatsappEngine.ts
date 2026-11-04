@@ -111,7 +111,10 @@ export interface WhatsAppTemplateDef {
   name: string;
   category: TemplateCategory;
   description: string;
-  languages: Record<LanguageCode, string>;
+  languages: {
+    en: string;
+    [key: string]: string | undefined;
+  };
 }
 
 export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
@@ -121,9 +124,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent when general RO service or periodic maintenance is due',
     languages: {
       en: `Hi {{customerName}}, greetings from {{businessName}}! 💧\n\nYour {{purifierBrand}} RO Water Purifier is due for its periodic service on {{dueDate}}.\n\nRegular service maintains pure drinking water and extends filter life. Would you like to schedule a technician visit this week?\n\nReply YES to book a convenient slot.`,
-      te: `నమస్కారం {{customerName}} గారు, {{businessName}} నుండి! 💧\n\nమీ {{purifierBrand}} RO వాటర్ ప్యూరిఫైయర్ సర్వీస్ {{dueDate}} తేదీన చేయవలసి ఉంది.\n\nరెగ్యులర్ సర్వీసింగ్ వల్ల స్వచ్ఛమైన నీరు లభిస్తుంది మరియు ఫిల్టర్ల ఆయుష్షు పెరుగుతుంది. ఈ వారం టెక్నీషియన్ విజిట్ షెడ్యూల్ చేయమంటారా?\n\nఅనుకూలమైన సమయం కోసం YES అని రిప్లై ఇవ్వండి.`,
-      hi: `नमस्ते {{customerName}} जी, {{businessName}} की ओर से सादर प्रणाम! 💧\n\nआपके {{purifierBrand}} RO वाटर प्यूरीफायर की नियमित सर्विस {{dueDate}} को देय है।\n\nशुद्ध पेयजल और प्यूरीफायर की लंबी उम्र के लिए नियमित सर्विस आवश्यक है। क्या हम इस सप्ताह सर्विस शेड्यूल करें?\n\nसुविधाजनक समय बुक करने के लिए कृपया YES लिखकर उत्तर दें।`,
-      hinglish: `Hi {{customerName}} ji, {{businessName}} se! 💧\n\nAapke {{purifierBrand}} RO Purifier ka regular service {{dueDate}} ko due hai. Pure drinking water aur filters ki health ke liye time pe servicing zaroori hai.\n\nKya hum is hafte technician visit schedule karein? Slot book karne ke liye reply karein YES.`,
     },
   },
   SERVICE_OVERDUE: {
@@ -132,9 +132,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent to customers whose service is overdue > 7 days to protect membrane and health',
     languages: {
       en: `Attention {{customerName}}: Your {{purifierBrand}} RO service is now overdue. ⚠️ Overdue filters can affect water purity, increase TDS, and reduce membrane life.\n\n{{businessName}} has certified technician slots available today. Reply BOOK to send a technician.`,
-      te: `శ్రద్ధ వహించండి {{customerName}} గారు: మీ {{purifierBrand}} RO సర్వీస్ సమయం మించిపోయింది. ⚠️ ఫిల్టర్లు మార్చకపోతే నీటి నాణ్యత తగ్గవచ్చు, TDS పెరగవచ్చు.\n\n{{businessName}} వద్ద ఈరోజు టెక్నీషియన్ స్లాట్స్ అందుబాటులో ఉన్నాయి. బుకింగ్ కొరకు BOOK అని రిప్లై ఇవ్వండి.`,
-      hi: `ध्यान दें {{customerName}} जी: आपके {{purifierBrand}} RO की सर्विस अतिदेय (Overdue) हो चुकी है। ⚠️ समय पर फिल्टर न बदलने से पानी की शुद्धता प्रभावित हो सकती है और TDS बढ़ सकता है।\n\nआज ही सर्विस के लिए BOOK लिखकर भेजें। - {{businessName}}`,
-      hinglish: `Alert {{customerName}} ji: Aapke {{purifierBrand}} RO ka service overdue ho gaya hai. ⚠️ Choked filters se membrane kharab ho sakti hai aur TDS badh sakta hai.\n\nTechnician slot book karne ke liye turant BOOK reply karein. - {{businessName}}`,
     },
   },
   FILTER_REPLACEMENT: {
@@ -143,9 +140,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent when sediment or pre-carbon filters complete their 3 to 6 month cycle',
     languages: {
       en: `Hi {{customerName}}, greetings from {{businessName}}! 💧\n\nYour {{purifierBrand}} sediment and carbon filter lifespan is nearing completion (due on {{dueDate}}).\n\nTimely filter replacement protects your expensive RO membrane and prevents bacteria & dirt buildup.\n\nReply YES to book a genuine filter replacement visit.`,
-      te: `నమస్కారం {{customerName}} గారు, {{businessName}} నుండి! 💧\n\nమీ {{purifierBrand}} సెడిమెంట్ మరియు కార్బన్ ఫిల్టర్ల గడువు {{dueDate}} న ముగుస్తుంది.\n\nసకాలంలో ఫిల్టర్లు మార్చడం వల్ల RO మెంబ్రేన్ పాడవకుండా ఉంటుంది మరియు బ్యాక్టీరియా చేరకుండా ఉంటుంది.\n\nఒరిజినల్ ఫిల్టర్ల మార్పిడి కోసం YES అని రిప్లై ఇవ్వండి.`,
-      hi: `नमस्ते {{customerName}} जी, {{businessName}} से! 💧\n\nआपके {{purifierBrand}} RO के सेडिमेंट और कार्बन फिल्टर बदलने का समय आ गया है (देय: {{dueDate}})।\n\nसमय पर फिल्टर बदलने से RO मेम्ब्रेन सुरक्षित रहती है और पानी शुद्ध रहता है।\n\nजेनुइन फिल्टर रिप्लेसमेंट बुक करने के लिए YES लिखकर भेजें।`,
-      hinglish: `Hi {{customerName}} ji, {{businessName}} se! 💧\n\nAapke {{purifierBrand}} RO ke sediment aur carbon filters change karne ka time ho gaya hai (Due: {{dueDate}}).\n\nTime par filter change karne se expensive membrane safe rehti hai aur safe drinking water milta hai.\n\nTechnician slot ke liye reply karein YES.`,
     },
   },
   TDS_WATER_HEALTH_CHECK: {
@@ -154,9 +148,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Doorstep water TDS measurement and mineral quality testing campaign',
     languages: {
       en: `Is your drinking water 100% pure & safe? 🧪💧\n\nHi {{customerName}}, {{businessName}} is offering a FREE Doorstep Water Quality & Digital TDS Checkup this week in your locality!\n\nUnchecked tap or borewell water can harm your family's health. Let our water expert test your inlet & RO output water.\n\nReply TDS to book your free checkup today!`,
-      te: `మీరు త్రాగే నీరు 100% స్వచ్ఛంగా ఉందా? 🧪💧\n\nనమస్కారం {{customerName}} గారు, మీ ఏరియాలో ఈ వారం {{businessName}} ఆధ్వర్యంలో ఉచిత వాటర్ క్వాలిటీ & డిజిటల్ TDS టెస్టింగ్ నిర్వహిస్తున్నాము!\n\nసరైన TDS లేని నీరు తాగడం వల్ల ఆరోగ్య సమస్యలు రావచ్చు. మీ ఇంటి RO నీటిని టెస్ట్ చేయించుకోవడానికి TDS అని రిప్లై ఇవ్వండి.`,
-      hi: `क्या आपका पीने का पानी 100% शुद्ध और सुरक्षित है? 🧪💧\n\nनमस्ते {{customerName}} जी, {{businessName}} आपके इलाके में इस सप्ताह मुफ़्त (FREE) वाटर TDS और शुद्धता जांच शिविर चला रहा है!\n\nअपने घर के पानी का डिजिटल टीडीएस टेस्ट कराने के लिए तुरंत TDS लिखकर भेजें!`,
-      hinglish: `Kya aapka drinking water 100% pure hai? 🧪💧\n\nHi {{customerName}} ji, {{businessName}} aapke area mein is hafte FREE Doorstep Water TDS aur Quality Checkup offer kar raha hai!\n\nRO output TDS check karwane ke liye turant reply karein TDS.`,
     },
   },
   APPOINTMENT_CONFIRMATION: {
@@ -165,9 +156,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent once a technician is assigned to a service slot',
     languages: {
       en: `Your RO service has been confirmed! ✅\n\nDate: {{scheduledDate}}\nTime: {{scheduledTime}}\nTechnician: {{technicianName}}\n\nOur technician will call you before arriving. Thank you for choosing {{businessName}}!`,
-      te: `మీ RO సర్వీస్ అపాయింట్‌మెంట్ కన్ఫర్మ్ చేయబడింది! ✅\n\nతేదీ: {{scheduledDate}}\nసమయం: {{scheduledTime}}\nటెక్నీషియన్: {{technicianName}}\n\nమా టెక్నీషియన్ రాకముందు మీకు కాల్ చేస్తారు. {{businessName}} ని ఎంచుకున్నందుకు ధన్యవాదాలు!`,
-      hi: `आपकी RO सर्विस कन्फर्म हो गई है! ✅\n\nदिनांक: {{scheduledDate}}\nसमय: {{scheduledTime}}\nतकनीशियन: {{technicianName}}\n\nहमारे तकनीशियन आने से पहले आपसे संपर्क करेंगे। {{businessName}} चुनने के लिए धन्यवाद!`,
-      hinglish: `Aapka RO service confirm ho gaya hai! ✅\n\nDate: {{scheduledDate}}\nTime: {{scheduledTime}}\nTechnician: {{technicianName}}\n\nTechnician aane se pehle call karenge. Thanks for trusting {{businessName}}!`,
     },
   },
   TECHNICIAN_ON_WAY: {
@@ -176,9 +164,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent when technician departs for customer doorstep',
     languages: {
       en: `Our service technician {{technicianName}} is on the way to your location for your {{purifierBrand}} RO service. 🛵\n\nExpected arrival within 20-30 minutes. - {{businessName}}`,
-      te: `మా సర్వీస్ టెక్నీషియన్ {{technicianName}} మీ {{purifierBrand}} RO సర్వీస్ కోసం మీ ఇంటికి బయలుదేరారు. 🛵\n\n20-30 నిమిషాల్లో చేరుకుంటారు. - {{businessName}}`,
-      hi: `हमारे तकनीशियन {{technicianName}} आपके {{purifierBrand}} RO सर्विस के लिए निकल चुके हैं। 🛵\n\nलगभग 20-30 मिनट में पहुंचेंगे। - {{businessName}}`,
-      hinglish: `Humare technician {{technicianName}} aapke address ke liye nikal chuke hain. 🛵\n\n20-30 minutes mein pahunch jayenge. - {{businessName}}`,
     },
   },
   NEW_INSTALLATION: {
@@ -187,9 +172,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent when a new RO purifier order is confirmed and installation is scheduled',
     languages: {
       en: `Congratulations {{customerName}}! 🎉\n\nYour order for {{purifierBrand}} {{purifierModel}} has been confirmed by {{businessName}}.\n\nInstallation Scheduled: {{scheduledDate}} (Slot: {{scheduledTime}})\nTechnician: {{technicianName}}\n\nOur certified technician will arrive for professional, leak-free installation, electrical check, and pure water TDS calibration.\n\nPure Water. Healthier Life! 🚰`,
-      te: `అభినందనలు {{customerName}} గారు! 🎉\n\n{{businessName}} వద్ద మీ {{purifierBrand}} {{purifierModel}} ఆర్డర్ కన్ఫర్మ్ చేయబడింది.\n\nఇన్‌స్టాలేషన్ తేదీ: {{scheduledDate}} (సమయం: {{scheduledTime}})\nటెక్నీషియన్: {{technicianName}}\n\nమా సర్టిఫైడ్ టెక్నీషియన్ వచ్చి పైప్ కనెక్షన్లు మరియు వాటర్ TDS టెస్టింగ్ పూర్తి చేస్తారు.\n\nస్వచ్ఛమైన నీరు. ఆరోగ్యకరమైన జీవితం! 🚰`,
-      hi: `बधाई हो {{customerName}} जी! 🎉\n\n{{businessName}} के साथ आपके {{purifierBrand}} {{purifierModel}} का ऑर्डर कन्फर्म हो गया है।\n\nइंस्टॉलेशन तिथि: {{scheduledDate}} (समय: {{scheduledTime}})\nतकनीशियन: {{technicianName}}\n\nहमारे प्रमाणित तकनीशियन सुरक्षित और पेशेवर इंस्टॉलेशन के लिए पहुंचेंगे।\n\nशुद्ध जल, स्वस्थ जीवन! 🚰`,
-      hinglish: `Congratulations {{customerName}} ji! 🎉\n\n{{businessName}} se aapka {{purifierBrand}} {{purifierModel}} order confirm ho gaya hai.\n\nInstallation Date: {{scheduledDate}} (Time: {{scheduledTime}})\nTechnician: {{technicianName}}\n\nHumare certified technician complete installation aur water TDS setup karenge.\n\nPure Water. Healthy Life! 🚰`,
     },
   },
   SERVICE_COMPLETED: {
@@ -198,9 +180,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent after successful technician sign-off with pure water guarantee',
     languages: {
       en: `Your {{purifierBrand}} RO service has been successfully completed! 🚰✨\n\nTechnician: {{technicianName}}\nAmount Paid: ₹{{amount}}\nNext Service Due: in 3 months.\n\nThank you for choosing {{businessName}}. Pure & safe drinking water guaranteed!`,
-      te: `మీ {{purifierBrand}} RO సర్వీస్ విజయవంతంగా పూర్తయింది! 🚰✨\n\nటెక్నీషియన్: {{technicianName}}\nచెల్లించిన మొత్తం: ₹{{amount}}\nతదుపరి సర్వీస్: 3 నెలల్లో.\n\n{{businessName}} ని ఎంచుకున్నందుకు ధన్యవాదాలు! స్వచ్ఛమైన మరియు సురక్షితమైన నీరు మా హామీ!`,
-      hi: `आपकी {{purifierBrand}} RO सर्विस सफलतापूर्वक संपन्न हो गई है! 🚰✨\n\nतकनीशियन: {{technicianName}}\nभुगतान राशि: ₹{{amount}}\nअगली सर्विस: 3 महीने बाद।\n\n{{businessName}} पर विश्वास करने के लिए धन्यवाद! स्वस्थ रहें, सुरक्षित रहें।`,
-      hinglish: `Aapka {{purifierBrand}} RO service complete ho gaya hai! 🚰✨\n\nTechnician: {{technicianName}}\nAmount: ₹{{amount}}\nAgla service: 3 months baad.\n\nThank you for choosing {{businessName}}! Pure & safe drinking water guaranteed!`,
     },
   },
   PAYMENT_PENDING: {
@@ -209,9 +188,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent for uncollected or pending service invoices with payment modes',
     languages: {
       en: `Dear {{customerName}}, an outstanding balance of ₹{{amount}} is pending for your recent RO service by {{businessName}}.\n\nYou can pay securely via UPI, QR code on your invoice, or cash on visit. Thank you for your prompt payment!`,
-      te: `ప్రియమైన {{customerName}} గారు, మీ ఇటీవలి RO సర్వీస్ కు సంబంధించి ₹{{amount}} బకాయి ఉంది.\n\nదయచేసి ఇన్వాయిస్‌లోని UPI QR కోడ్ ద్వారా లేదా క్యాష్ ద్వారా చెల్లించగలరు. ధన్యవాదాలు! - {{businessName}}`,
-      hi: `प्रिय {{customerName}} जी, आपकी हालिया RO सर्विस के लिए ₹{{amount}} की राशि बकाया है।\n\nकृपया इनवॉइस पर दिए गए UPI QR कोड या नकद द्वारा भुगतान करें। धन्यवाद! - {{businessName}}`,
-      hinglish: `Dear {{customerName}} ji, aapke recent RO service ka ₹{{amount}} payment pending hai.\n\nAap invoice par diye gaye UPI QR code ya cash se pay kar sakte hain. - {{businessName}}`,
     },
   },
   AMC_RENEWAL: {
@@ -220,9 +196,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent when customer AMC is expiring within 30 days',
     languages: {
       en: `Protect your purifier year-round! 🛡️\n\nHi {{customerName}}, your Annual Maintenance Contract (AMC) with {{businessName}} expires on {{dueDate}}. Renew now to get 3 Free Periodic Services, Free Filter Replacements, and Free Breakdown Support!\n\nReply RENEW for our special renewal offer.`,
-      te: `సంవత్సరం మొత్తం మీ ప్యూరిఫైయర్‌ను రక్షించుకోండి! 🛡️\n\n{{customerName}} గారు, {{businessName}} తో మీ వార్షిక నిర్వహణ కాంట్రాక్ట్ (AMC) {{dueDate}} న ముగుస్తుంది. ఉచిత సర్వీసులు మరియు స్పేర్స్ కవరేజ్ కోసం వెంటనే రెన్యూ చేసుకోండి.\n\nఆఫర్ల కోసం RENEW అని రిప్లై ఇవ్వండి.`,
-      hi: `साल भर बेफिक्र रहें! 🛡️\n\n{{customerName}} जी, {{businessName}} के साथ आपका RO AMC अनुबंध {{dueDate}} को समाप्त हो रहा है। फ्री सर्विस और फिल्टर कवरेज जारी रखने के लिए आज ही रिन्यू करें।\n\nविशेष छूट के लिए RENEW लिखकर भेजें।`,
-      hinglish: `Year-round peace of mind! 🛡️\n\n{{customerName}} ji, aapka RO AMC contract {{dueDate}} ko expire ho raha hai. Free periodic services aur filters coverage ke liye abhi renew karein.\n\nOffer janne ke liye reply RENEW. - {{businessName}}`,
     },
   },
   FESTIVE_EXCHANGE_OFFER: {
@@ -231,9 +204,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Promotional campaign to trade in old purifier for a brand new Copper/Alkaline model',
     languages: {
       en: `Mega RO Purifier Exchange Festival! 🎁✨\n\nDear {{customerName}}, trade in your old or malfunctioning RO purifier and get an INSTANT FLAT ₹1,500 - ₹3,000 DISCOUNT on top brand Alkaline Copper RO purifiers from {{businessName}}!\n\n✅ 100% Copper + Zinc + Alkaline Mineral Health\n✅ Free Delivery & Professional Installation\n✅ 1-Year Comprehensive Warranty\n\nReply OFFERS to see eligible models & exchange value!`,
-      te: `మెగా RO ప్యూరిఫైయర్ ఎక్స్ఛేంజ్ ఫెస్టివల్! 🎁✨\n\nప్రియమైన {{customerName}} గారు, మీ పాత RO వాటర్ ప్యూరిఫైయర్‌ను ఎక్స్ఛేంజ్ చేసుకొని {{businessName}} వద్ద సరికొత్త ఆల్కలీన్ కాపర్ RO పై ఫ్లాట్ ₹1,500 - ₹3,000 వరకు డిస్కౌంట్ పొందండి!\n\n✅ ఫ్రీ డెలివరీ & ఇన్‌స్టాలేషన్\n✅ 1 సంవత్సరం పూర్తి వారంటీ\n\nమోడల్స్ వివరాల కోసం OFFERS అని రిప్లై ఇవ్వండి!`,
-      hi: `महा RO एक्सचेंज एवं अपग्रेड ऑफर! 🎁✨\n\nप्रिय {{customerName}} जी, अपने पुराने RO प्यूरीफायर को बदलें और {{businessName}} से नए अल्कलाइन कॉपर RO पर तुरंत ₹1,500 से ₹3,000 की छूट पाएं!\n\n✅ फ्री डिलीवरी और इंस्टॉलेशन\n✅ 1 वर्ष की व्यापक वारंटी\n\nऑफर जानने के लिए OFFERS लिखकर उत्तर दें!`,
-      hinglish: `Mega RO Exchange Offer! 🎁✨\n\nDear {{customerName}} ji, apna purana ya problem dene wala RO exchange karein aur {{businessName}} se brand new Alkaline Copper RO par direct ₹1,500 - ₹3,000 discount payein!\n\n✅ Free Installation\n✅ 1-Year Warranty\n\nModels dekhne ke liye reply karein OFFERS!`,
     },
   },
   WELCOME_ONBOARDING: {
@@ -242,9 +212,6 @@ export const WHATSAPP_TEMPLATES: Record<string, WhatsAppTemplateDef> = {
     description: 'Sent to newly onboarded or registered customers with direct helpline',
     languages: {
       en: `Welcome to {{businessName}}! 🌊🚰\n\nDear {{customerName}}, thank you for registering with us for your {{purifierBrand}} Water Purifier care. Your water purity and peace of mind are now our top responsibility!\n\nSave this number for:\n• Quick Service & Filter Reminders\n• Fast Emergency Leakage Support\n• 100% Genuine Certified Spares\n\nNeed any help? Just reply HI to chat with us anytime!`,
-      te: `{{businessName}} కుటుంబంలోకి స్వాగతం! 🌊🚰\n\nప్రియమైన {{customerName}} గారు, మీ {{purifierBrand}} వాటర్ ప్యూరిఫైయర్ సంరక్షణ కోసం మమ్మల్ని ఎంచుకున్నందుకు ధన్యవాదాలు. మీ స్వచ్ఛమైన నీటి బాధ్యత మాది!\n\nఏదైనా సహాయం కావాలంటే ఎప్పుడైనా HI అని మెసేజ్ చేయండి!`,
-      hi: `{{businessName}} परिवार में आपका हार्दिक स्वागत है! 🌊🚰\n\nप्रिय {{customerName}} जी, अपने {{purifierBrand}} RO की देखभाल के लिए हमसे जुड़ने पर धन्यवाद। शुद्ध जल की गारंटी हमारा वादा है!\n\nकिसी भी सहायता या सर्विस के लिए कभी भी HI लिखकर संपर्क करें!`,
-      hinglish: `Welcome to {{businessName}} family! 🌊🚰\n\nDear {{customerName}} ji, aapke {{purifierBrand}} RO care ke liye hume choose karne ka shukriya. Pure drinking water ensure karna humari priority hai!\n\nKisi bhi service ya emergency help ke liye bas reply karein HI!`,
     },
   },
 };
@@ -335,7 +302,7 @@ Hello ${technician.name}, you have a service job assigned by ${business.name}.
 ━━━━━━━━━━━━━━━━━━━
 👤 *CUSTOMER DETAILS*
 • *Name:* ${customer.fullName}
-• *Phone:* +91 ${customer.mobileNumber}
+• *Phone:* +91 ${customer.mobileNumber}${(customer.alternateMobile || customer.alternativePhone) ? `\n• *Alt Phone:* +91 ${customer.alternateMobile || customer.alternativePhone}` : ''}
 • *Locality:* ${customer.areaLocality}
 • *Address:* ${customer.houseFlatNo ? customer.houseFlatNo + ', ' : ''}${customer.streetAddress || ''}
 ${customer.landmark ? `• *Landmark:* ${customer.landmark}` : ''}

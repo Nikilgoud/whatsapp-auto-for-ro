@@ -1,6 +1,7 @@
 import { Customer, Purifier, ServiceRecord, BusinessSettings, CustomerStatus, CustomerType, PurifierType } from '@/types';
 import { calculateUrgency, getDaysRemaining } from './dueCalculator';
 import { normalizeIndianPhoneNumber } from './whatsappEngine';
+import { generateCustomerCode } from '@/lib/utils';
 import { addMonths, addDays, format, isValid as isValidDate } from 'date-fns';
 import * as XLSX from 'xlsx';
 
@@ -167,13 +168,21 @@ export function processImportRecords(
 ): ImportResult {
   const defaultInterval = settings?.defaultServiceIntervalMonths || 3;
   const rows: ImportRowValidation[] = [];
+  const constructedCustomers: Customer[] = [];
   let validCount = 0;
   let errorCount = 0;
 
   records.forEach((raw, idx) => {
     // 1. Fuzzy Column Extraction
+    const customerCodeRaw = findRowValue(raw, ['customerid', 'customercode', 'custid', 'custcode', 'clientid', 'cid', 'id']);
     const name = findRowValue(raw, ['customername', 'fullname', 'clientname', 'customer', 'client', 'name', 'consumer']);
     const phoneRaw = findRowValue(raw, ['mobilenumber', 'phonenumber', 'whatsappnumber', 'whatsapp', 'mobile', 'phone', 'contact', 'cell', 'ph']);
+    const altPhoneRaw = findRowValue(raw, [
+      'alternativenumber', 'alternativephone', 'alternativemobile',
+      'alternatemobile', 'alternatephone', 'alternatenumber',
+      'altphone', 'altmobile', 'secondaryphone', 'secondarymobile',
+      'otherphone', 'othermobile', 'emergencycontact', 'alt'
+    ]);
     const address = findRowValue(raw, ['streetaddress', 'houseflatno', 'address', 'colony', 'flat', 'street', 'door', 'house']);
     const area = findRowValue(raw, ['arealocality', 'locality', 'area', 'location', 'sector', 'landmark', 'zone']);
     const city = findRowValue(raw, ['city', 'town', 'district']);
@@ -211,6 +220,7 @@ export function processImportRecords(
 
     // 2. Validate Essential Fields
     const cleanPhone = cleanIndianMobileNumber(phoneRaw);
+    const cleanAltPhone = altPhoneRaw ? cleanIndianMobileNumber(altPhoneRaw) : undefined;
     if (!name && !cleanPhone) {
       // Completely empty row, skip without failing the whole process
       return;
@@ -292,13 +302,19 @@ export function processImportRecords(
     // Parse Service Charge (if 'free' or not provided -> 0)
     const serviceCharge = parseServiceCharge(serviceChargeRaw);
 
-    // 4. Construct Customer Record
+    // 4. Construct Customer Record (sequence+year+month)
+    const effectiveCustomerCode = customerCodeRaw
+      ? String(customerCodeRaw).trim()
+      : generateCustomerCode(constructedCustomers, parsedInstallDate || parsedLastService || new Date());
+
     const parsedCustomer: Customer = {
       id: customerId,
       businessId,
-      customerCode: `CUST-${1000 + idx + 1}`,
+      customerCode: effectiveCustomerCode,
       fullName: name,
       mobileNumber: cleanPhone,
+      alternateMobile: cleanAltPhone || undefined,
+      alternativePhone: cleanAltPhone || undefined,
       whatsappNumber: normPhone,
       houseFlatNo: '',
       streetAddress: effectiveAddress,
@@ -317,6 +333,7 @@ export function processImportRecords(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    constructedCustomers.push(parsedCustomer);
 
     // 5. Construct Purifier Record (Strictly Excel fields, empty components, no phantom charges)
     const parsedPurifier: Purifier = {
@@ -451,6 +468,7 @@ export const SAMPLE_INDIAN_CUSTOMERS = [
   {
     'Customer Name': 'Ramesh Varma',
     'Phone Number': '9876512345',
+    'Alternative Mobile': '9849011223',
     'Address / Flat': 'Plot 12, Cyber Valley',
     'Locality': 'Madhapur',
     'Purifier Brand': 'Kent',

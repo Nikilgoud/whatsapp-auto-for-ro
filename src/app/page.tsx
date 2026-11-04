@@ -109,8 +109,20 @@ export default function Home() {
         />
 
         {/* Scrollable View Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scrollbar-thin">
-          <div className="max-w-7xl mx-auto pb-24 lg:pb-12">
+        <main
+          className={`flex-1 overflow-y-auto scrollbar-thin ${
+            activeTab === 'whatsapp-inbox'
+              ? 'p-1.5 sm:p-4 lg:p-6'
+              : 'p-3 sm:p-6 lg:p-8'
+          }`}
+        >
+          <div
+            className={`max-w-7xl mx-auto ${
+              activeTab === 'whatsapp-inbox'
+                ? 'pb-20 lg:pb-6 h-full flex flex-col'
+                : 'pb-24 lg:pb-12'
+            }`}
+          >
             {activeTab === 'dashboard' && (
               <OwnerDashboard
                 onNavigate={(tab) => setActiveTab(tab)}
@@ -122,6 +134,11 @@ export default function Home() {
             {activeTab === 'whatsapp-inbox' && (
               <WhatsAppInbox
                 onSelectCustomer={(cust) => setSelected360Customer(cust)}
+                onOpenScheduleService={(cust) => handleOpenScheduleForCustomer(cust)}
+                onOpenCreateInvoice={(cust) => {
+                  setSelected360Customer(cust);
+                  setActiveTab('invoices');
+                }}
               />
             )}
 

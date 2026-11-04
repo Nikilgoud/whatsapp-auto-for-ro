@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     // Read current business profile to get registered phone & business info
     const profilePath = path.join(process.cwd(), 'src', 'config', 'businessProfile.json');
     let registeredPhone = '9849000000';
-    let businessName = 'Apex RO Care Solutions';
+    let businessName = 'sr water purifiers';
 
     if (fs.existsSync(profilePath)) {
       try {

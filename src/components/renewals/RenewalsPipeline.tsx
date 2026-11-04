@@ -58,7 +58,7 @@ export const RenewalsPipeline: React.FC<RenewalsPipelineProps> = ({
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Repeat className="w-5 h-5 text-blue-600" />
-            <span>Service Renewal Pipeline</span>
+            <span>SERVICE STATUS</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-bold">
               {filteredRenewals.length} Opportunities
             </span>

@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         });
 
         // A. Handle OPT-OUT / STOP request
-        if (['STOP', 'UNSUBSCRIBE', 'HALT', 'నిలిపివేయి'].includes(upperText)) {
+        if (['STOP', 'UNSUBSCRIBE', 'HALT'].includes(upperText)) {
           if (customer?.id) {
             await supabaseAdmin
               .from('customers')
@@ -128,10 +128,7 @@ export async function POST(req: NextRequest) {
               .eq('id', customer.id);
           }
 
-          const optOutAck =
-            customer?.language_preference === 'te'
-              ? 'మీ అభ్యర్థన మేరకు వాట్సాప్ సందేశాలు నిలిపివేయబడ్డాయి. మళ్లీ ప్రారంభించడానికి START అని పంపండి.'
-              : 'You have been opted out of automated WhatsApp reminders. Reply START to re-enable anytime.';
+          const optOutAck = 'You have been opted out of automated WhatsApp reminders. Reply START to re-enable anytime.';
 
           await sendWhatsAppMessage({
             businessId,
@@ -143,7 +140,7 @@ export async function POST(req: NextRequest) {
         }
 
         // B. Handle OPT-IN / START request
-        if (['START', 'UNSTOP', 'ప్రారంభించు'].includes(upperText)) {
+        if (['START', 'UNSTOP'].includes(upperText)) {
           if (customer?.id) {
             await supabaseAdmin
               .from('customers')
@@ -151,10 +148,7 @@ export async function POST(req: NextRequest) {
               .eq('id', customer.id);
           }
 
-          const optInAck =
-            customer?.language_preference === 'te'
-              ? 'ధన్యవాదాలు! మీ RO సర్వీస్ నోటిఫికేషన్లు మళ్లీ యాక్టివేట్ అయ్యాయి.'
-              : 'Welcome back! Your RO service reminder notifications have been re-activated.';
+          const optInAck = 'Welcome back! Your RO service reminder notifications have been re-activated.';
 
           await sendWhatsAppMessage({
             businessId,
@@ -167,24 +161,14 @@ export async function POST(req: NextRequest) {
 
         // C. Grounded 24/7 Intelligent RO Assistant
         let replyText = '';
-        const isTelugu = customer?.language_preference === 'te' || /[ఀ-౿]/.test(messageText);
-
-        if (/book|service|appointment|సర్వీస్|రిపేర్/i.test(messageText)) {
-          replyText = isTelugu
-            ? `నమస్తే ${customer?.full_name || ''}, మీ RO సర్వీస్ బుకింగ్ అభ్యర్థన నమోదు చేయబడింది. మా అధీక్షక టెక్నీషియన్ అతి త్వరలో మిమ్మల్ని సంప్రదిస్తారు. అత్యవసరమైతే మా హెల్ప్‌లైన్‌కు కాల్ చేయండి.`
-            : `Hello ${customer?.full_name || ''}, your RO service booking request has been noted. Our authorized technician will contact you shortly to confirm the appointment.`;
-        } else if (/cost|price|filter|rate|ధర|ఖర్చు/i.test(messageText)) {
-          replyText = isTelugu
-            ? `సాధారణ RO సర్వీస్ ఛార్జ్ ₹299 నుండి ప్రారంభమవుతుంది. పూర్తి సెడిమెంట్, కార్బన్ ఫిల్టర్ మార్పు ప్యాకేజీ ₹1,200 నుండి ప్రారంభమవుతుంది. మా ప్రతినిధి మీకు పూర్తి వివరాలు అందజేరుతారు.`
-            : `General RO inspection starts from ₹299. Standard filter replacement packages start from ₹1,200 including genuine parts and testing.`;
-        } else if (/tds|taste|leak|water|రుచి|నీరు/i.test(messageText)) {
-          replyText = isTelugu
-            ? `నీటి రుచి మారినా లేదా లీకేజ్ ఉన్నా, వెంటనే RO మెషిన్ స్విచ్ ఆఫ్ చేసి ఇన్లెట్ వాల్వ్ ఆపండి. మా టెక్నీషియన్ వచ్చి TDS లెవెల్స్ ఉచితంగా తనిఖీ చేస్తారు.`
-            : `If you notice taste issues or leakage, please switch off the purifier power and inlet valve. Our technician will visit to inspect and measure the TDS level.`;
+        if (/book|service|appointment/i.test(messageText)) {
+          replyText = `Hello ${customer?.full_name || ''}, your RO service booking request has been noted. Our authorized technician will contact you shortly to confirm the appointment.`;
+        } else if (/cost|price|filter|rate/i.test(messageText)) {
+          replyText = `General RO inspection starts from ₹299. Standard filter replacement packages start from ₹1,200 including genuine parts and testing.`;
+        } else if (/tds|taste|leak|water/i.test(messageText)) {
+          replyText = `If you notice taste issues or leakage, please switch off the purifier power and inlet valve. Our technician will visit to inspect and measure the TDS level.`;
         } else {
-          replyText = isTelugu
-            ? `నమస్తే, నికి ఆక్వాప్యూర్ RO సర్వీసెస్ కు స్వాగతం. మీ సందేశం మా కస్టమర్ కేర్ టీమ్‌కు అందింది. త్వరలోనే మా ప్రతినిధి మిమ్మల్ని సంప్రదిస్తారు.`
-            : `Thank you for contacting Aquapure RO Services. We have received your query. Our service desk representative will connect with you shortly.`;
+          replyText = `Thank you for contacting Aquapure RO Services. We have received your query. Our service desk representative will connect with you shortly.`;
         }
 
         await sendWhatsAppMessage({

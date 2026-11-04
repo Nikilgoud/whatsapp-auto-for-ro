@@ -457,7 +457,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
               <p className="mt-1 text-[11px] text-slate-400">
-                Registered owner: {business.ownerName || 'Demo Admin'} ({defaultOwnerPhone})
+                Registered owner: {business.ownerName || 'Owner'} ({defaultOwnerPhone})
               </p>
             </div>
 

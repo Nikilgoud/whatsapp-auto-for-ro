@@ -16,7 +16,6 @@ import {
   Settings,
   Smartphone,
   Droplets,
-  RotateCcw,
   Sparkles,
   X,
   Bot,
@@ -34,7 +33,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen = false, onClose }) => {
-  const { business, renewals, inventory, resetDemoData, unreadWhatsAppCount, logoutOwner } = useApp();
+  const { business, renewals, inventory, unreadWhatsAppCount, logoutOwner } = useApp();
   const { logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
 
@@ -54,12 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
       id: 'whatsapp-automation',
       label: 'WhatsApp Automation',
       icon: Bot,
-      badge: 'AUTO',
-      badgeColor: 'bg-emerald-500 text-white',
     },
     {
       id: 'renewals',
-      label: 'Renewals Pipeline',
+      label: 'SERVICE STATUS',
       icon: Repeat,
       badge: overdueCount > 0 ? overdueCount : undefined,
       badgeColor: 'bg-rose-500 text-white',
@@ -175,18 +172,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
 
       {/* Bottom Footer Actions */}
       <div className="p-3 border-t border-slate-800 space-y-2">
-        <button
-          onClick={() => {
-            if (confirm('Reset to initial realistic Hyderabad RO demo dataset?')) {
-              resetDemoData();
-            }
-          }}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded-lg transition"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Demo Data</span>
-        </button>
-
         {/* Dedicated Logout Button */}
         <button
           onClick={() => setShowLogoutConfirm(true)}

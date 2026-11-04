@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
         email: data.email,
         website: data.website,
         payment_qr_code_url: data.paymentQrCodeUrl,
+        signature_url: data.signatureUrl,
         address: data.address,
         city: data.city,
         state: data.state,

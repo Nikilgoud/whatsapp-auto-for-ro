@@ -63,44 +63,44 @@ export const SalesTaxInvoicePrintModal: React.FC<SalesTaxInvoicePrintModalProps>
   const activeQrImage = business.paymentQrCodeUrl || dynamicQrUrl;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-4 print:border-none print:shadow-none print:w-full print:max-w-none print:m-0">
-        {/* Modal Controls (Hidden in Print) */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 print:hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/75 backdrop-blur-xs print:p-0 print:bg-white print:static">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[94vh] flex flex-col rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden print:border-none print:shadow-none print:w-full print:max-w-none print:max-h-none print:m-0 print:overflow-visible">
+        {/* Modal Controls (Fixed Top Toolbar, Hidden in Print) */}
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 print:hidden z-10">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Tax Invoice Document Preview
             </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
               {invoice.invoiceNumber}
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleShareWhatsApp}
-              className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Share2 className="w-3.5 h-3.5" />
-              <span>Share on WhatsApp</span>
+              <span>Share WhatsApp</span>
             </button>
             <button
               onClick={handlePrint}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer active:scale-95"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Download PDF</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors ml-1"
+              className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors ml-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Printable Invoice Sheet */}
-        <div className="p-6 sm:p-8 space-y-6 text-slate-900 dark:text-slate-100 print:text-black print:p-4 print:space-y-4">
+        {/* Printable Invoice Sheet (Scrollable) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 text-slate-900 dark:text-slate-100 print:text-black print:overflow-visible print:p-4 print:space-y-4 scrollbar-thin">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-slate-200 pb-5">
             <div className="space-y-1">
@@ -148,6 +148,14 @@ export const SalesTaxInvoicePrintModal: React.FC<SalesTaxInvoicePrintModalProps>
                     <td className="text-slate-500 font-medium pr-3 py-0.5">Invoice No:</td>
                     <td className="font-mono font-bold text-slate-900 dark:text-white print:text-black">{invoice.invoiceNumber}</td>
                   </tr>
+                  {(invoice.customerCode || customer?.customerCode) && (
+                    <tr>
+                      <td className="text-slate-500 font-medium pr-3 py-0.5">Customer ID:</td>
+                      <td className="font-mono font-bold text-blue-700 dark:text-blue-400 print:text-black">
+                        {invoice.customerCode || customer?.customerCode}
+                      </td>
+                    </tr>
+                  )}
                   <tr>
                     <td className="text-slate-500 font-medium pr-3 py-0.5">Invoice Date:</td>
                     <td className="font-medium text-slate-800 dark:text-slate-200 print:text-black">{formatDateDDMMYYYY(invoice.invoiceDate)}</td>
@@ -171,9 +179,16 @@ export const SalesTaxInvoicePrintModal: React.FC<SalesTaxInvoicePrintModalProps>
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Billed To (Customer Details)
               </span>
-              <p className="font-bold text-sm text-slate-900 dark:text-white print:text-black">
-                {customer?.fullName || 'Valued Customer'}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-bold text-sm text-slate-900 dark:text-white print:text-black">
+                  {customer?.fullName || 'Valued Customer'}
+                </p>
+                {(invoice.customerCode || customer?.customerCode) && (
+                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 print:border-black">
+                    Cust ID: {invoice.customerCode || customer?.customerCode}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-600 dark:text-slate-300 print:text-slate-700 mt-0.5">
                 {customer?.streetAddress ? `${customer.streetAddress}, ${customer.areaLocality}` : customer?.areaLocality || 'Delivery Address'}
               </p>
@@ -352,21 +367,57 @@ export const SalesTaxInvoicePrintModal: React.FC<SalesTaxInvoicePrintModalProps>
           <div className="pt-4 border-t border-slate-200 text-xs grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
             <div className="space-y-1 text-slate-500 text-[11px] leading-relaxed">
               <span className="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
-                Terms & Warranty Conditions:
+                Official Warranty Terms & Conditions:
               </span>
               <p>1. 1-Year Comprehensive Warranty covers SMPS, booster pump, and RO membrane against manufacturing defects.</p>
-              <p>2. Physical breakage, high-voltage burning, or external tampering voids the warranty.</p>
-              <p>3. Goods once sold are covered under replacement/repair guarantee as per company policy.</p>
+              <p>2. Quote Customer ID <strong className="font-mono text-slate-800 dark:text-slate-200">{invoice.customerCode || customer?.customerCode}</strong> for prompt on-site warranty claims and 3 free periodic visits.</p>
+              <p>3. Physical breakage, high-voltage burning without stabilizer, or external tampering voids the warranty.</p>
+              <p>4. Doorstep support helpline: <strong>{business.phone}</strong> (WhatsApp enabled).</p>
             </div>
 
-            <div className="text-right space-y-8 pt-4 sm:pt-0">
+            <div className="text-right space-y-3 pt-4 sm:pt-0">
               <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                 For {business.name.toUpperCase()}
               </div>
-              <div className="border-t border-slate-400 w-44 ml-auto pt-1 text-[10px] text-slate-500">
-                Authorized Signatory
+              <div className="w-44 ml-auto flex flex-col items-end justify-end">
+                {business.signatureUrl ? (
+                  <div className="h-12 w-full flex items-end justify-end">
+                    <img
+                      src={business.signatureUrl}
+                      alt="Authorized Signature"
+                      className="max-h-12 max-w-[150px] object-contain mb-1"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-8 w-full"></div>
+                )}
+                <div className="border-t border-slate-400 w-full pt-1 text-[10px] text-slate-500 text-right">
+                  Authorized Signatory
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Bottom Actions Bar (Hidden on Print) */}
+        <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 print:hidden text-xs">
+          <span className="text-slate-500 font-medium hidden sm:inline">
+            Viewing full tax invoice • Scroll vertically to inspect all details
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Invoice</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-lg transition cursor-pointer"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

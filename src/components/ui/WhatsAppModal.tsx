@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Customer, Purifier, LanguageCode } from '@/types';
+import { Customer, Purifier } from '@/types';
 import { useApp } from '@/context/AppContext';
 import {
   WHATSAPP_TEMPLATES,
@@ -9,7 +9,7 @@ import {
   generateWhatsAppLink,
   checkReminderEligibility,
 } from '@/lib/services/whatsappEngine';
-import { MessageSquare, ExternalLink, Globe, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { MessageSquare, ExternalLink, AlertCircle, CheckCircle, X } from 'lucide-react';
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -36,9 +36,8 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   scheduledTime,
   technicianName,
 }) => {
-  const { business, selectedLanguage, switchLanguage, logCommunication } = useApp();
+  const { business, logCommunication } = useApp();
   const [templateKey, setTemplateKey] = useState<string>(defaultTemplateKey);
-  const [lang, setLang] = useState<LanguageCode>(selectedLanguage);
   const [messageBody, setMessageBody] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
@@ -50,7 +49,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
 
   useEffect(() => {
     const templateDef = WHATSAPP_TEMPLATES[templateKey] || WHATSAPP_TEMPLATES.SERVICE_DUE;
-    const rawTemplate = templateDef.languages[lang] || templateDef.languages.en;
+    const rawTemplate = templateDef.languages.en || '';
 
     const interpolated = interpolateTemplate(rawTemplate, {
       customerName: customer.fullName,
@@ -69,7 +68,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
     });
 
     setMessageBody(interpolated);
-  }, [templateKey, lang, customer, purifier, dueDate, amount, scheduledDate, scheduledTime, technicianName, business.name, business.ownerName, business.address, business.city, business.phone, business.website]);
+  }, [templateKey, customer, purifier, dueDate, amount, scheduledDate, scheduledTime, technicianName, business.name, business.ownerName, business.address, business.city, business.phone, business.website]);
 
   if (!isOpen) return null;
 
@@ -83,7 +82,7 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
       customerId: customer.id,
       channel: 'WhatsApp',
       templateKey,
-      language: lang,
+      language: 'en',
       messageText: messageBody,
       status: 'Sent',
       responseReceived: false,
@@ -128,50 +127,22 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
             </div>
           )}
 
-          {/* Template & Language Switcher */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                Select Template
-              </label>
-              <select
-                value={templateKey}
-                onChange={(e) => setTemplateKey(e.target.value)}
-                className="w-full text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                {Object.entries(WHATSAPP_TEMPLATES).map(([key, t]) => (
-                  <option key={key} value={key}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-1">
-                <Globe className="w-3.5 h-3.5 text-slate-500" />
-                Language
-              </label>
-              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
-                {(['en', 'te', 'hi', 'hinglish'] as LanguageCode[]).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => {
-                      setLang(l);
-                      switchLanguage(l);
-                    }}
-                    className={`py-1.5 text-xs font-semibold rounded-md transition ${
-                      lang === l
-                        ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {l === 'te' ? 'తెలుగు' : l === 'hi' ? 'हिन्दी' : l === 'en' ? 'English' : 'Hinglish'}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Template Selector */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Select Template
+            </label>
+            <select
+              value={templateKey}
+              onChange={(e) => setTemplateKey(e.target.value)}
+              className="w-full text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+            >
+              {Object.entries(WHATSAPP_TEMPLATES).map(([key, t]) => (
+                <option key={key} value={key}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Message Preview Box */}

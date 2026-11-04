@@ -24,7 +24,6 @@ import {
   Wrench,
   ChevronRight,
   DollarSign,
-  Droplet,
   Trophy,
   Award,
   MapPin,
@@ -134,10 +133,6 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-950 via-slate-900 to-sky-950 rounded-3xl p-6 text-white shadow-xl border border-sky-500/20 relative overflow-hidden">
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="space-y-1 relative z-10">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 dark:bg-white/5 rounded-full text-xs text-cyan-300 font-semibold border border-cyan-400/20 backdrop-blur-xs">
-            <Droplet className="w-3.5 h-3.5 text-cyan-400" />
-            <span>RO Operating System • Water-Tech Control Center</span>
-          </div>
           <h2 className="text-2xl font-extrabold tracking-tight">
             {getGreeting()}, {ownerDisplayName}!
           </h2>
@@ -151,7 +146,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             onClick={() => onNavigate('renewals')}
             className="px-4 py-2.5 text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 rounded-xl transition shadow-sm flex items-center gap-1.5 active:scale-95"
           >
-            <span>Open Renewal Pipeline</span>
+            <span>Open SERVICE STATUS</span>
             <ArrowUpRight className="w-4 h-4" />
           </button>
         </div>
@@ -703,7 +698,7 @@ export const OwnerDashboard: React.FC<OwnerDashboardProps> = ({
             onClick={() => onNavigate('renewals')}
             className="text-xs text-blue-600 font-semibold hover:underline self-start sm:self-auto"
           >
-            View Full Pipeline &rarr;
+            View SERVICE STATUS &rarr;
           </button>
         </div>
 

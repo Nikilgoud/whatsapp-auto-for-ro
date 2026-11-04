@@ -13,6 +13,19 @@ export interface WhatsAppSendParams {
   mediaUrl?: string | null;
   mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
   mediaCaption?: string | null;
+  mediaFilename?: string | null;
+  interactiveType?: 'button' | 'list' | null;
+  interactiveData?: {
+    headerText?: string;
+    bodyText: string;
+    footerText?: string;
+    buttons?: { id: string; title: string }[];
+    listButtonTitle?: string;
+    sections?: {
+      title: string;
+      rows: { id: string; title: string; description?: string }[];
+    }[];
+  } | null;
 }
 
 export interface WhatsAppSendResult {
@@ -53,12 +66,15 @@ export async function sendWhatsAppMessage(
     renewalId,
     serviceId,
     templateName,
-    languageCode = 'te',
+    languageCode = 'en',
     parameters = [],
     bodyText,
     mediaUrl,
     mediaType,
     mediaCaption,
+    mediaFilename,
+    interactiveType,
+    interactiveData,
   } = params;
 
   const formattedTo = formatWhatsAppPhoneNumber(recipientPhone);
@@ -73,7 +89,43 @@ export async function sendWhatsAppMessage(
     to: formattedTo,
   };
 
-  if (templateName) {
+  if (interactiveType === 'button' && interactiveData) {
+    payload.type = 'interactive';
+    payload.interactive = {
+      type: 'button',
+      ...(interactiveData.headerText ? { header: { type: 'text', text: interactiveData.headerText } } : {}),
+      body: { text: interactiveData.bodyText || bodyText || 'Please select an option:' },
+      ...(interactiveData.footerText ? { footer: { text: interactiveData.footerText } } : {}),
+      action: {
+        buttons: (interactiveData.buttons || []).slice(0, 3).map((btn) => ({
+          type: 'reply',
+          reply: {
+            id: btn.id,
+            title: btn.title.slice(0, 20),
+          },
+        })),
+      },
+    };
+  } else if (interactiveType === 'list' && interactiveData) {
+    payload.type = 'interactive';
+    payload.interactive = {
+      type: 'list',
+      ...(interactiveData.headerText ? { header: { type: 'text', text: interactiveData.headerText } } : {}),
+      body: { text: interactiveData.bodyText || bodyText || 'Please select from the options below:' },
+      ...(interactiveData.footerText ? { footer: { text: interactiveData.footerText } } : {}),
+      action: {
+        button: (interactiveData.listButtonTitle || 'View Options').slice(0, 20),
+        sections: (interactiveData.sections || []).map((sec) => ({
+          title: sec.title.slice(0, 24),
+          rows: (sec.rows || []).slice(0, 10).map((row) => ({
+            id: row.id.slice(0, 200),
+            title: row.title.slice(0, 24),
+            description: row.description ? row.description.slice(0, 72) : undefined,
+          })),
+        })),
+      },
+    };
+  } else if (templateName) {
     payload.type = 'template';
     payload.template = {
       name: templateName,
@@ -95,6 +147,7 @@ export async function sendWhatsAppMessage(
     payload[mediaType] = {
       link: mediaUrl,
       ...(mediaCaption ? { caption: mediaCaption } : {}),
+      ...(mediaType === 'document' ? { filename: mediaFilename || 'Document.pdf' } : {}),
     };
   } else if (bodyText) {
     payload.type = 'text';
@@ -106,7 +159,7 @@ export async function sendWhatsAppMessage(
     return {
       success: false,
       status: 'failed',
-      error: 'Either templateName, bodyText, or mediaUrl must be provided.',
+      error: 'Either templateName, bodyText, mediaUrl, or interactiveData must be provided.',
     };
   }
 

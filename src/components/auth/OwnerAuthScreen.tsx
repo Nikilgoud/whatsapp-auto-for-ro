@@ -234,7 +234,7 @@ export const OwnerAuthScreen: React.FC<OwnerAuthScreenProps> = ({
           </div>
 
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-            {business?.name || 'Apex RO Care Solutions'} • Owner Administration
+            {business?.name || 'sr water purifiers'} • Owner Administration
           </p>
 
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-full text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">

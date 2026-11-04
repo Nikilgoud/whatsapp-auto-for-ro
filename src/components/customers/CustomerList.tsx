@@ -52,7 +52,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      const matchPhone = c.mobileNumber.includes(q) || c.whatsappNumber.includes(q);
+      const matchPhone =
+        c.mobileNumber.includes(q) ||
+        c.whatsappNumber.includes(q) ||
+        (c.alternateMobile && c.alternateMobile.includes(q)) ||
+        (c.alternativePhone && c.alternativePhone.includes(q));
       const matchName = c.fullName.toLowerCase().includes(q);
       const matchArea = c.areaLocality.toLowerCase().includes(q);
       const matchCode = c.customerCode.toLowerCase().includes(q);
@@ -98,7 +102,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Customer</span>
+            <span>Add Customer</span>
           </button>
         </div>
       </div>
@@ -169,11 +173,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                       {cust.fullName.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                        {cust.fullName}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                          {cust.fullName}
+                        </p>
+                      </div>
                       <p className="text-xs font-mono text-slate-500">
                         +91 {cust.mobileNumber}
+                        {(cust.alternateMobile || cust.alternativePhone) && (
+                          <span className="block text-[11px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                            Alt: +91 {cust.alternateMobile || cust.alternativePhone}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -255,6 +266,27 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     <Phone className="w-4 h-4" />
                   </a>
 
+                  {(cust.alternateMobile || cust.alternativePhone) && (
+                    <>
+                      <a
+                        href={`tel:${cust.alternateMobile || cust.alternativePhone}`}
+                        className="p-2 bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white rounded-xl transition"
+                        title={`Call Alternative (+91 ${cust.alternateMobile || cust.alternativePhone})`}
+                      >
+                        <Phone className="w-4 h-4 text-cyan-500" />
+                      </a>
+                      <a
+                        href={`https://wa.me/91${(cust.alternateMobile || cust.alternativePhone)?.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white rounded-xl transition"
+                        title={`WhatsApp Alternative (+91 ${cust.alternateMobile || cust.alternativePhone})`}
+                      >
+                        <MessageSquare className="w-4 h-4 text-emerald-500" />
+                      </a>
+                    </>
+                  )}
+
                   <button
                     onClick={() => onBookService(cust, customerPurifier)}
                     className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition text-center shadow-xs"
@@ -310,12 +342,19 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                             {cust.fullName.slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition">
-                              {cust.fullName}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition">
+                                {cust.fullName}
+                              </p>
+                            </div>
                             <p className="text-[11px] font-mono text-slate-500 font-medium">
                               +91 {cust.mobileNumber}
                             </p>
+                            {(cust.alternateMobile || cust.alternativePhone) && (
+                              <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
+                                Alt: +91 {cust.alternateMobile || cust.alternativePhone}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -403,6 +442,15 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                           >
                             <Phone className="w-3.5 h-3.5" />
                           </a>
+                          {(cust.alternateMobile || cust.alternativePhone) && (
+                            <a
+                              href={`tel:${cust.alternateMobile || cust.alternativePhone}`}
+                              className="p-1.5 bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white rounded-lg transition"
+                              title={`Call Alternative (+91 ${cust.alternateMobile || cust.alternativePhone})`}
+                            >
+                              <Phone className="w-3.5 h-3.5 text-cyan-500" />
+                            </a>
+                          )}
                           <button
                             onClick={() => onBookService(cust, customerPurifier)}
                             className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-[11px] transition"

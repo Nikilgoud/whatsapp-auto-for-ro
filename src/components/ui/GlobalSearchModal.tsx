@@ -43,6 +43,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           c.fullName.toLowerCase().includes(q) ||
           c.mobileNumber.includes(q) ||
           c.whatsappNumber.includes(q) ||
+          (c.alternateMobile && c.alternateMobile.includes(q)) ||
+          (c.alternativePhone && c.alternativePhone.includes(q)) ||
           c.customerCode.toLowerCase().includes(q) ||
           c.areaLocality.toLowerCase().includes(q) ||
           c.streetAddress.toLowerCase().includes(q)
@@ -107,7 +109,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                           {c.fullName}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          📱 +91 {c.mobileNumber} • 📍 {c.areaLocality} • {p?.brand} {p?.model}
+                          📱 +91 {c.mobileNumber}{c.alternateMobile || c.alternativePhone ? ` (Alt: +91 ${c.alternateMobile || c.alternativePhone})` : ''} • 📍 {c.areaLocality} • {p?.brand} {p?.model}
                         </p>
                       </div>
                     </div>

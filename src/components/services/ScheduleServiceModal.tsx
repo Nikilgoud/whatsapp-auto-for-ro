@@ -141,10 +141,21 @@ export const ScheduleServiceModal: React.FC<ScheduleServiceModalProps> = ({
             >
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.fullName} • +91 {c.mobileNumber} ({c.areaLocality})
+                  {c.fullName} • +91 {c.mobileNumber}{(c.alternateMobile || c.alternativePhone) ? ` (Alt: +91 ${c.alternateMobile || c.alternativePhone})` : ''} ({c.areaLocality})
                 </option>
               ))}
             </select>
+
+            {currentCustomer && (
+              <div className="mt-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-lg text-[11px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                <span>Primary: <strong>+91 {currentCustomer.mobileNumber}</strong></span>
+                {(currentCustomer.alternateMobile || currentCustomer.alternativePhone) && (
+                  <span className="text-cyan-600 dark:text-cyan-400 font-semibold">
+                    Alt: <strong>+91 {currentCustomer.alternateMobile || currentCustomer.alternativePhone}</strong>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Service Type & Purifier */}

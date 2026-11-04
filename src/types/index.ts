@@ -54,6 +54,7 @@ export interface Business {
   email: string;
   website?: string;
   paymentQrCodeUrl?: string;
+  signatureUrl?: string;
   address: string;
   city: string;
   state: string;
@@ -90,6 +91,7 @@ export interface Customer {
   fullName: string;
   mobileNumber: string;
   alternateMobile?: string;
+  alternativePhone?: string;
   whatsappNumber: string;
   email?: string;
   houseFlatNo: string;
@@ -379,7 +381,10 @@ export interface MessageTemplate {
   key: string;
   name: string;
   triggerEvent: string;
-  languages: Record<LanguageCode, string>;
+  languages: {
+    en: string;
+    [key: string]: string | undefined;
+  };
   variables: string[];
 }
 
@@ -430,6 +435,7 @@ export interface Invoice {
   businessId: string;
   invoiceNumber: string;
   customerId: string;
+  customerCode?: string;
   serviceRecordId?: string;
   purifierId?: string;
   purifierProductId?: string;
@@ -438,6 +444,8 @@ export interface Invoice {
   paymentMethod?: PaymentMethod;
   deliveryStatus?: 'Delivered' | 'Pending Installation' | 'Shipped' | 'Completed';
   installationDate?: string;
+  warrantyExpiry?: string;
+  sparePartsWarrantyExpiry?: string;
   technicianId?: string;
   invoiceDate: string;
   dueDate: string;
@@ -541,11 +549,24 @@ export interface LiveWhatsAppMessage {
   customerId?: string | null;
   phoneNumber: string;
   direction: 'INBOUND' | 'OUTBOUND';
-  messageType: 'TEXT' | 'TEMPLATE' | 'MEDIA';
+  messageType: 'TEXT' | 'TEMPLATE' | 'MEDIA' | 'INTERACTIVE_BUTTON' | 'INTERACTIVE_LIST';
   templateName?: string | null;
   content: string;
   mediaUrl?: string | null;
   mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
+  mediaFilename?: string | null;
+  interactiveData?: {
+    type: 'button' | 'list';
+    headerText?: string;
+    bodyText: string;
+    footerText?: string;
+    buttons?: { id: string; title: string }[];
+    listButtonTitle?: string;
+    sections?: {
+      title: string;
+      rows: { id: string; title: string; description?: string }[];
+    }[];
+  } | null;
   providerMessageId?: string | null;
   status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
   errorMessage?: string | null;
@@ -569,6 +590,7 @@ export interface LiveWhatsAppConversation {
   lastMessageDirection: 'INBOUND' | 'OUTBOUND';
   lastMessageStatus: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'RECEIVED';
   lastMessageTime: string;
+  lastInboundTime?: string | null;
   mediaUrl?: string | null;
   mediaType?: 'image' | 'video' | 'document' | 'audio' | null;
 }
